@@ -14,5 +14,5 @@ urlpatterns = [
 ]
 
 router = routers.SimpleRouter()
-router.register(r'rooms', RoomViewSet)
+router.register(r'rooms', RoomViewSet, basename='rooms')
 urlpatterns += router.urls

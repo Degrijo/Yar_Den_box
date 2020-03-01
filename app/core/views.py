@@ -1,5 +1,5 @@
 from string import ascii_uppercase, digits
-from random import choices
+from random import choices, sample, shuffle
 
 from django.db.models import Count
 from django.contrib.auth import login, logout, authenticate, get_user_model
@@ -15,7 +15,7 @@ from rest_framework.response import Response
 from rest_framework.parsers import JSONParser
 from rest_framework import status
 
-from app.core.models import Room, Task
+from app.core.models import Room, Task, UserRoomTask
 from app.core.serializers import PlayerRoomSerializer, HostRoomSerializer, TaskSerializer
 
 
@@ -41,12 +41,10 @@ class RoomViewSet(GenericViewSet, CreateModelMixin, DestroyModelMixin, RetrieveM
             if not Room.objects.filter(address=address).exists():
                 break
         room = Room.objects.create(address=address, max_round=request.data['max_round'])
-        get_user_model().objects.create(username=request.data['username'], room=room, role=get_user_model().HOST)
-        user = authenticate(request, username=request.data['username'])
+        user = get_user_model().objects.create(username=request.data['username'], room=room, role=get_user_model().HOST)
         if user:
             login(request, user)
-        serializer = self.get_serializer(data=user)
-        serializer.is_valid(raise_exception=True)
+        serializer = self.get_serializer(user)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(methods=['POST'], detail=False, url_path='join-room')
@@ -54,12 +52,10 @@ class RoomViewSet(GenericViewSet, CreateModelMixin, DestroyModelMixin, RetrieveM
         room = get_object_or_404(Room, address=request.data['address'])
         if room.status != Room.PENDING:
             return Response(status=status.HTTP_400_BAD_REQUEST)
-        get_user_model().objects.create(username=request.data['username'], room=room, role=get_user_model().PLAYER)
-        user = authenticate(request, username=request.data['username'])
+        user = get_user_model().objects.create(username=request.data['usernme'], room=room, role=get_user_model().PLAYER)
         if user:
             login(request, user)
-        serializer = self.get_serializer(data=user)
-        serializer.is_valid(raise_exception=True)
+        serializer = self.get_serializer(user)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(methods=['POST'], detail=False, url_path='start-game')
@@ -68,11 +64,19 @@ class RoomViewSet(GenericViewSet, CreateModelMixin, DestroyModelMixin, RetrieveM
         if request.user.role != get_user_model().HOST or request.user.room.status == Room.WORKING:
             return Response(status=status.HTTP_400_BAD_REQUEST)
         room = request.user.room
-        if Task.objects.count() < room.users.count():
+        user_count = room.users.count()
+        if user_count < 2:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        tasks = Task.objects.exclude(rooms__id=room.id)
+        if tasks.count() < user_count:
             return Response(status=status.HTTP_204_NO_CONTENT)
         room.status = Room.WORKING
         room.save()
-        tasks = Task.objects.exclude(rooms__id=room.id)
+        game_tasks = shuffle(sample(list(tasks.values('id')), k=user_count) * 2)
+        for i in range(user_count):
+            UserRoomTask.objects.create(task_id=game_tasks[2*i], room=room, user=room.users[i], status=UserRoomTask.PENDING)
+            UserRoomTask.objects.create(task_id=game_tasks[2*i + 1], room=room, user=room.users[i], status=UserRoomTask.PENDING)
+        return Response(status=status.HTTP_201_CREATED)
 
     @permission_classes([IsAuthenticated])
     def retrieve(self, request, *args, **kwargs):

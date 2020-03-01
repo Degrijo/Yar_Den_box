@@ -40,7 +40,7 @@ class Room(models.Model):
 
 class Task(models.Model):
     name = models.CharField(max_length=500)
-    image = models.ImageField()
+    image = models.ImageField(blank=True, null=True)
     objects = models.Manager()
 
     def __str__(self):
@@ -59,5 +59,5 @@ class UserRoomTask(models.Model):
     task = models.ForeignKey('Task', models.PROTECT, 'userroomtasks')
     room = models.ForeignKey('Room', models.CASCADE, 'userroomtasks')
     user = models.ForeignKey('CustomUser', models.PROTECT, 'userroomtasks')
-    answer = models.CharField(max_length=500)
+    answer = models.CharField(max_length=500, blank=True)
     status = models.PositiveSmallIntegerField(default=PENDING)
