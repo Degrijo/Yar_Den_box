@@ -1,72 +1,44 @@
 from django.db.models import Sum
 from django.contrib.auth import get_user_model
+from django.contrib.auth.validators import UnicodeUsernameValidator
 
-from rest_framework.serializers import ModelSerializer, SerializerMethodField
+from rest_framework import serializers
 
 from app.core.models import Room, Task
 
 
-class SignUpSerializer(ModelSerializer):
+class HostRoomSerializer(serializers.ModelSerializer):
+    address = serializers.CharField(max_length=4, source='room.username', read_only=True)
+    current_round = serializers.IntegerField(default=1, source='room.current_round', read_only=True)
+    max_round = serializers.IntegerField(default=3, source='room.max_round')
+
     class Meta:
         model = get_user_model()
-        fields = (
-            'username',
-            'password',
-            'role',
-        )
-        write_only_fields = (
-            'password',
-        )
+        fields = ('id', 'address', 'current_round', 'max_round', 'username')
+        read_only_fields = ('id',)
 
 
-class LoginSerializer(ModelSerializer):
+class PlayerRoomSerializer(serializers.ModelSerializer):
+    address = serializers.CharField(max_length=4, source='room.address')
+
     class Meta:
         model = get_user_model()
-        fields = (
-            'username',
-            'password',
-        )
-        write_only_fields = (
-            'password',
-        )
+        fields = ('id', 'username', 'address')
+        read_only_fields = ('id',)
 
 
-class RoomSerializer(ModelSerializer):
+class RoomSerializer(serializers.ModelSerializer):
+    tasks = serializers.SerializerMethodField()
+
     class Meta:
         model = Room
-        fields = (
-            'address',
-            'watchers_number',
-        )
-        read_only_fields = (
-            'address',
-            'watchers_number',
-        )
+        fields = ('id', 'current_task', 'tasks')
+
+    def get_tasks(self, obj):  # "Do anything": {'user1': ''}
+        obj.tasks.annotate()
 
 
-class DetailRoomSerializer(RoomSerializer):  # check with select and without
-    watchers_top_number = SerializerMethodField(read_only=True)
-    total_sum_price = SerializerMethodField(read_only=True)
-    current_task = SerializerMethodField(read_only=True)
-
-    class Meta(RoomSerializer):
-        model = Room
-        fields = (
-            'address',
-            'watchers_number',
-            'watchers_top_number',
-            'total_sum_prize',
-            'current_task',
-        )
-
-    def get_watchers_top_number(self, obj):
-        return
-
-    def get_total_sum_price(self, obj):
-        qs = Task.objects.filter(room=obj).aggregate(Sum('prize'))
-        return qs.prize__sum
-
-    def get_current_task(self, obj):
-        if Task.objects.filter(room=obj, status=Task.APPROVED_STATUS).count() == 1:
-            return Task.objects.get(room=obj, status=Task.APPROVED_STATUS).name
-        return ""
+class TaskSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Task
+        fields = ('name', 'image')

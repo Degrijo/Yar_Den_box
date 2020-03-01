@@ -3,95 +3,83 @@ from random import choices
 
 from django.db.models import Count
 from django.contrib.auth import login, logout, authenticate, get_user_model
+from django.shortcuts import get_object_or_404
 
 from rest_framework.viewsets import ModelViewSet, GenericViewSet
 from rest_framework.generics import CreateAPIView, DestroyAPIView
-from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin
+from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, \
+    DestroyModelMixin
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import action
+from rest_framework.decorators import action, permission_classes
 from rest_framework.response import Response
 from rest_framework.parsers import JSONParser
 from rest_framework import status
 
 from app.core.models import Room, Task
-from app.core.serializers import SignUpSerializer, LoginSerializer, RoomSerializer
-from app.core.permissions import PlayerPermission, WatcherPermission
+from app.core.serializers import PlayerRoomSerializer, HostRoomSerializer, TaskSerializer
 
 
-class SignUpView(CreateAPIView):
-    queryset = get_user_model()
-    serializer_class = SignUpSerializer
+class RoomViewSet(GenericViewSet, CreateModelMixin, DestroyModelMixin, RetrieveModelMixin):
+    def get_queryset(self):
+        if self.action == 'join_room':
+            return get_user_model().objects.all()
+        return Room.objects.all()
 
-    def post(self, request, *args, **kwargs):
-        data = request.data.copy()
-        if data['role'] == get_user_model().PLAYER:
-            while True:
-                address = ''.join(choices(ascii_uppercase + digits, k=Room.address.max_length))
-                if not Room.objects.filter(address=address).exists():
-                    break
-            room = Room.objects.create(address=address)
-            data['players_room'] = room.id
-        serializer = self.get_serializer(data=data)
+    def get_serializer_class(self, *args, **kwargs):
+        if self.action == 'create':
+            return HostRoomSerializer
+        elif self.action == 'get_current_task':
+            return TaskSerializer
+        elif self.action == 'join_room':
+            return PlayerRoomSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        user = authenticate(request, username=data['username'], password=data['password'])
-        print(user)
+        while True:
+            address = ''.join(choices(ascii_uppercase + digits, k=Room._meta.get_field('address').max_length))
+            if not Room.objects.filter(address=address).exists():
+                break
+        room = Room.objects.create(address=address, max_round=request.data['max_round'])
+        get_user_model().objects.create(username=request.data['username'], room=room, role=get_user_model().HOST)
+        user = authenticate(request, username=request.data['username'])
         if user:
             login(request, user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        else:
+        serializer = self.get_serializer(data=user)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(methods=['POST'], detail=False, url_path='join-room')
+    def join_room(self, request, *args, **kwargs):
+        room = get_object_or_404(Room, address=request.data['address'])
+        if room.status != Room.PENDING:
             return Response(status=status.HTTP_400_BAD_REQUEST)
-
-
-class LoginView(CreateAPIView):
-    queryset = get_user_model()
-    serializer_class = LoginSerializer
-
-    def post(self, request, *args, **kwargs):
-        user = authenticate(request, username=request.data['username'], password=request.data['password'])
+        get_user_model().objects.create(username=request.data['username'], room=room, role=get_user_model().PLAYER)
+        user = authenticate(request, username=request.data['username'])
         if user:
             login(request, user)
-            return Response(status=status.HTTP_200_OK)
-        else:
+        serializer = self.get_serializer(data=user)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(methods=['POST'], detail=False, url_path='start-game')
+    @permission_classes([IsAuthenticated])
+    def start_game(self, request):
+        if request.user.role != get_user_model().HOST or request.user.room.status == Room.WORKING:
             return Response(status=status.HTTP_400_BAD_REQUEST)
+        room = request.user.room
+        if Task.objects.count() < room.users.count():
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        room.status = Room.WORKING
+        room.save()
+        tasks = Task.objects.exclude(rooms__id=room.id)
 
-
-class LogoutView(DestroyAPIView):
-    def delete(self, request, *args, **kwargs):
-        logout(request)
-        return Response(status=status.HTTP_401_UNAUTHORIZED)
-
-
-class WatcherRoomViewSet(GenericViewSet, ListModelMixin, RetrieveModelMixin):
-    queryset = Room.objects.all()
-    serializer_class = RoomSerializer
-    permission_classes = (IsAuthenticated, WatcherPermission)
-
-    def get_queryset(self):  # add select and prefetch related
-        return self.queryset.annotate(watchers_number=Count('watchers')).order_by('-watchers_number')
-
-    @action(detail=True, methods=['GET'], url_path='favorite-rooms')
-    def favorite_rooms(self, request):
-        queryset = self.get_queryset().filter(userroom__favorite=True, users__id=request.user.id).values_list('room__id', 'room__player__username', 'watchers_number')
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['GET'], url_path='previous-rooms')
-    def previous_rooms(self, request):
-        queryset = self.get_queryset().filter(users__id=request.user.id).values_list('room__id', 'room__player__username', 'watchers_number')
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset().values_list('room__id', 'room__player__username', 'watchers_number')
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
+    @permission_classes([IsAuthenticated])
     def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data)
+        obj = self.get_object().annotate(tasks='userroomtasks__name')
 
-
-# class PlayerRoomViewSet(GenericViewSet):  # таски пользователей, количество пользователей, место среди комнат
-
+    @permission_classes([IsAuthenticated])
+    def destroy(self, request, *args, **kwargs):
+        if request.user.role != get_user_model().HOST:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        return super().destroy(request, args, kwargs)
