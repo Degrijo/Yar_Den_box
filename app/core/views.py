@@ -1,25 +1,24 @@
 from string import ascii_uppercase, digits
 from random import choices, sample, shuffle
 
-from django.db.models import Count
-from django.contrib.auth import login, logout, authenticate, get_user_model
+from django.contrib.auth import login, logout, get_user_model
 from django.shortcuts import get_object_or_404
 
-from rest_framework.viewsets import ModelViewSet, GenericViewSet
-from rest_framework.generics import CreateAPIView, DestroyAPIView
+from rest_framework.viewsets import GenericViewSet
 from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, \
     DestroyModelMixin
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.decorators import action, permission_classes
 from rest_framework.response import Response
-from rest_framework.parsers import JSONParser
 from rest_framework import status
 
 from app.core.models import Room, Task, UserRoomTask
 from app.core.serializers import PlayerRoomSerializer, HostRoomSerializer, TaskSerializer
+from app.core.permissions import HostPermission, PlayerPermission, WorkingRoomPermission, PendingRoomPermission
 
 
-class RoomViewSet(GenericViewSet, CreateModelMixin, DestroyModelMixin, RetrieveModelMixin):
+class GameViewSet(GenericViewSet, CreateModelMixin, DestroyModelMixin, RetrieveModelMixin):
+
     def get_queryset(self):
         if self.action == 'join_room':
             return get_user_model().objects.all()
@@ -33,6 +32,7 @@ class RoomViewSet(GenericViewSet, CreateModelMixin, DestroyModelMixin, RetrieveM
         elif self.action == 'join_room':
             return PlayerRoomSerializer
 
+    @permission_classes([AllowAny])
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -42,27 +42,24 @@ class RoomViewSet(GenericViewSet, CreateModelMixin, DestroyModelMixin, RetrieveM
                 break
         room = Room.objects.create(address=address, max_round=request.data['max_round'])
         user = get_user_model().objects.create(username=request.data['username'], room=room, role=get_user_model().HOST)
-        if user:
-            login(request, user)
+        login(request, user)
         serializer = self.get_serializer(user)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(methods=['POST'], detail=False, url_path='join-room')
+    @permission_classes([AllowAny])
     def join_room(self, request, *args, **kwargs):
         room = get_object_or_404(Room, address=request.data['address'])
         if room.status != Room.PENDING:
             return Response(status=status.HTTP_400_BAD_REQUEST)
         user = get_user_model().objects.create(username=request.data['usernme'], room=room, role=get_user_model().PLAYER)
-        if user:
-            login(request, user)
+        login(request, user)
         serializer = self.get_serializer(user)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(methods=['POST'], detail=False, url_path='start-game')
-    @permission_classes([IsAuthenticated])
+    @permission_classes([HostPermission, PendingRoomPermission])
     def start_game(self, request):
-        if request.user.role != get_user_model().HOST or request.user.room.status == Room.WORKING:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
         room = request.user.room
         user_count = room.users.count()
         if user_count < 2:
@@ -78,12 +75,15 @@ class RoomViewSet(GenericViewSet, CreateModelMixin, DestroyModelMixin, RetrieveM
             UserRoomTask.objects.create(task_id=game_tasks[2*i + 1], room=room, user=room.users[i], status=UserRoomTask.PENDING)
         return Response(status=status.HTTP_201_CREATED)
 
-    @permission_classes([IsAuthenticated])
+    @action(methods=['POST'], detail=False, url_path='get-task')
+    @permission_classes([WorkingRoomPermission])
+    def get_task(self, request):
+        return Task.objects.filter(userroomtask__status=UserRoomTask.PENDING, userroomtask__user=request.user, userroomtask__room=)
+
     def retrieve(self, request, *args, **kwargs):
         obj = self.get_object().annotate(tasks='userroomtasks__name')
 
-    @permission_classes([IsAuthenticated])
+    @permission_classes([HostPermission])
     def destroy(self, request, *args, **kwargs):
-        if request.user.role != get_user_model().HOST:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+        logout(request)  # should logout all users?
         return super().destroy(request, args, kwargs)

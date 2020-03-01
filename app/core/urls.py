@@ -5,7 +5,7 @@ from django.contrib import admin
 
 from rest_framework import routers
 
-from app.core.views import RoomViewSet
+from app.core.views import GameViewSet
 
 
 urlpatterns = [
@@ -14,5 +14,5 @@ urlpatterns = [
 ]
 
 router = routers.SimpleRouter()
-router.register(r'rooms', RoomViewSet, basename='rooms')
+router.register(r'game', GameViewSet, basename='game')
 urlpatterns += router.urls
