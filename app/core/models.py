@@ -15,6 +15,7 @@ class CustomUser(AbstractUser):
     password = None
     role = models.PositiveSmallIntegerField(default=PLAYER, choices=ROLE_TYPES)
     room = models.ForeignKey('Room', on_delete=models.CASCADE, related_name='users')
+    tasks = models.ManyToManyField('Task', related_name='users', through='UserTask')
 
     def __str__(self):
         return self.username
@@ -31,7 +32,6 @@ class Room(models.Model):
     current_round = models.PositiveSmallIntegerField(default=1)
     max_round = models.PositiveSmallIntegerField(default=3)
     status = models.PositiveSmallIntegerField(default=PENDING)
-    tasks = models.ManyToManyField('Task', related_name='rooms', through='UserRoomTask')
     objects = models.Manager()
 
     def __str__(self):
@@ -47,7 +47,7 @@ class Task(models.Model):
         return self.name
 
 
-class UserRoomTask(models.Model):
+class UserTask(models.Model):
     PENDING = 0
     COMPLETED = 1
     FINISHED = 2
@@ -56,8 +56,8 @@ class UserRoomTask(models.Model):
         (COMPLETED, 'Completed'),
         (FINISHED, 'Finished')
     )
-    task = models.ForeignKey('Task', models.PROTECT, 'userroomtasks')
-    room = models.ForeignKey('Room', models.CASCADE, 'userroomtasks')
-    user = models.ForeignKey('CustomUser', models.PROTECT, 'userroomtasks')
+    task = models.ForeignKey('Task', models.CASCADE, 'usertasks')
+    # room = models.ForeignKey('Room', models.CASCADE, 'userroomtasks')
+    user = models.ForeignKey('CustomUser', models.PROTECT, 'usertasks')
     answer = models.CharField(max_length=500)
     status = models.PositiveSmallIntegerField(default=PENDING)

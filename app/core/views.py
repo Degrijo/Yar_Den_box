@@ -20,6 +20,8 @@ from app.core.serializers import PlayerRoomSerializer, HostRoomSerializer, TaskS
 
 
 class RoomViewSet(GenericViewSet, CreateModelMixin, DestroyModelMixin, RetrieveModelMixin):
+    queryset = Room.objects.all()
+
     def get_queryset(self):
         if self.action == 'join_room':
             return get_user_model().objects.all()
