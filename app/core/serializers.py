@@ -8,9 +8,9 @@ from app.core.models import Room, Task
 
 
 class HostRoomSerializer(serializers.ModelSerializer):
-    address = serializers.CharField(max_length=4, source='room.username', read_only=True)
-    current_round = serializers.IntegerField(default=1, source='room.current_round', read_only=True)
-    max_round = serializers.IntegerField(default=3, source='room.max_round')
+    address = serializers.CharField(max_length=4, source='room.address', read_only=True)
+    current_round = serializers.IntegerField(allow_null=True, source='room.current_round', read_only=True)
+    max_round = serializers.IntegerField(allow_null=True, source='room.max_round')
 
     class Meta:
         model = get_user_model()

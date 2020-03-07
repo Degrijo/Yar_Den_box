@@ -39,7 +39,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     # 'debug_toolbar',
-    # 'rest_framework_swagger',
     'app.core',
 ]
 
@@ -73,6 +72,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_METADATA_CLASS': 'rest_framework.metadata.SimpleMetadata'
+}
 
 
 # Database
