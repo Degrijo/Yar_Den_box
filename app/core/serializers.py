@@ -4,7 +4,7 @@ from django.contrib.auth.validators import UnicodeUsernameValidator
 
 from rest_framework import serializers
 
-from app.core.models import Room, Task
+from app.core.models import Room, Task, UserTask
 
 
 class HostRoomSerializer(serializers.ModelSerializer):
@@ -27,18 +27,44 @@ class PlayerRoomSerializer(serializers.ModelSerializer):
         read_only_fields = ('id',)
 
 
-class RoomSerializer(serializers.ModelSerializer):
-    tasks = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Room
-        fields = ('id', 'current_task', 'tasks')
-
-    def get_tasks(self, obj):  # "Do anything": {'user1': ''}
-        obj.tasks.annotate()
-
-
 class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
-        fields = ('name', 'image')
+        fields = ('id', 'name', 'image')
+
+
+# class RoomSerializer(serializers.ModelSerializer):
+#     tasks = TaskSerializer(many=True)
+#
+#     class Meta:
+#         model = Room
+#         fields = ('id', 'current_task', 'tasks')
+#
+#     def get_tasks(self, obj):  # "Do anything": {'user1': ''}
+#         return obj.tasks.annotate()
+
+
+class AnswerSerializer(serializers.ModelSerializer):
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    status = serializers.HiddenField(default=UserTask.COMPLETED)
+
+    class Meta:
+        model = UserTask
+        fields = ('user', 'task_id', 'answer', 'status')
+
+
+class CompletedTaskSerializer(serializers.ModelSerializer):
+    task = serializers.CharField(max_length=500, source='task.name')
+    user = serializers.CharField(source='user.username')
+
+    class Meta:
+        model = UserTask
+        fields = ('id', 'task', 'answer', 'user')
+
+
+class VoitingSerializer(serializers.ModelSerializer):
+    likes = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
+    class Meta:
+        model = UserTask
+        fields = ('id', 'likes')

@@ -17,6 +17,7 @@ class HostPermission(IsAuthenticated):
     message = "For access this view user's role should be Host"
 
     def has_permission(self, request, view):
+        print('here')
         if request.user.role == get_user_model().HOST:
             return True
         return False
