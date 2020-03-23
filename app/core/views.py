@@ -58,7 +58,7 @@ class GameViewSet(GenericViewSet, CreateModelMixin, DestroyModelMixin, RetrieveM
     def join_room(self, request, *args, **kwargs):
         room = get_object_or_404(Room, address=request.data['address'])
         if room.status != Room.PENDING:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+            return Response(data='The game started yet', status=status.HTTP_400_BAD_REQUEST)
         user = get_user_model().objects.create(username=request.data['username'], room=room, role=get_user_model().PLAYER)
         login(request, user)
         serializer = self.get_serializer(user)
@@ -69,17 +69,22 @@ class GameViewSet(GenericViewSet, CreateModelMixin, DestroyModelMixin, RetrieveM
     def start_game(self, request):
         room = request.user.room
         user_count = room.users.count()
-        if user_count < 2:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+        if user_count < 3:
+            return Response(data='Counter of user smaller than 3', status=status.HTTP_400_BAD_REQUEST)
         tasks = Task.objects.exclude(users__room__id=room.id)
         if tasks.count() < user_count:
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            return Response(data='Task counter should be bigger or equal than user counter', status=status.HTTP_204_NO_CONTENT)
         room.status = Room.WORKING
         room.save()
-        game_tasks = shuffle(sample(list(tasks.values('id')), k=user_count) * 2)
+        game_tasks = sample(list(tasks.values_list('id', flat=True)), k=user_count)
+        repetitive_tasks = game_tasks.copy()
+        repetitive_tasks.append(repetitive_tasks.pop(0))
+        users = list(room.users.values_list('id', flat=True))
+        shuffle(users)
+        scope_cost = room.current_round * (user_count - 2) * 10
         for i in range(user_count):
-            UserTask.objects.create(task_id=game_tasks[2*i], user=room.users[i], status=UserTask.PENDING)
-            UserTask.objects.create(task_id=game_tasks[2*i + 1], user=room.users[i], status=UserTask.PENDING)
+            UserTask.objects.create(task_id=game_tasks[i], user_id=users[i], scope_cost=scope_cost)
+            UserTask.objects.create(task_id=repetitive_tasks[i], user_id=users[i], scope_cost=scope_cost)
         return Response(status=status.HTTP_201_CREATED)
 
     @action(methods=['GET'], detail=False, url_path='get-task')
