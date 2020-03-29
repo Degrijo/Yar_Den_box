@@ -5,3 +5,4 @@ db.qslite3
 static/
 media/
 local.py
+.env
