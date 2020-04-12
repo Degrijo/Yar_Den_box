@@ -5,12 +5,13 @@ from django.contrib import admin
 
 from rest_framework import routers
 
-from app.core.views import GameViewSet
+from app.core.views import home, GameViewSet
 
 
 urlpatterns = [
     path('__debug__/', include(debug_toolbar.urls)),
     path('admin/', admin.site.urls),
+    path('statistic/', home)
 ]
 
 router = routers.SimpleRouter()

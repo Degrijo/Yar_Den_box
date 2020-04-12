@@ -3,6 +3,7 @@ from random import choices, sample, shuffle
 
 from django.contrib.auth import login, logout, get_user_model
 from django.shortcuts import get_object_or_404
+from django.shortcuts import render
 
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, \
@@ -12,9 +13,20 @@ from rest_framework.decorators import action, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
 
-from app.core.models import Room, Task, UserTask
+from app.core.models import Room, Task, UserTask, GeneralVariable
 from app.core.serializers import PlayerRoomSerializer, HostRoomSerializer, TaskSerializer, AnswerSerializer, VoitingSerializer
 from app.core.permissions import HostPermission, PlayerPermission, WorkingRoomPermission, PendingRoomPermission
+
+
+def home(request):
+    data = {
+        'Total users': GeneralVariable.objects.get(name='Users counter').value,
+        'Total rooms': GeneralVariable.objects.get(name='Rooms counter').value,
+        'Total tasks': GeneralVariable.objects.get(name='Own tasks counter').value,
+        'Playing now': get_user_model().objects.count(),
+        'Active rooms': Room.objects.count()
+    }
+    return render(request, 'home.html', context={'data': data})
 
 
 class GameViewSet(GenericViewSet, CreateModelMixin, DestroyModelMixin, RetrieveModelMixin):
