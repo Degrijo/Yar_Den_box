@@ -74,6 +74,10 @@ TEMPLATES = [
     },
 ]
 
+REST_FRAMEWORK = {
+    'DEFAULT_METADATA_CLASS': 'rest_framework.metadata.SimpleMetadata'
+}
+
 WSGI_APPLICATION = 'config.wsgi.application'
 
 

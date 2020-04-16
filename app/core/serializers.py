@@ -44,7 +44,7 @@ class TaskSerializer(serializers.ModelSerializer):
 #         return obj.tasks.annotate()
 
 
-class AnswerSerializer(serializers.ModelSerializer):
+class AnswerSerializer(serializers.ModelSerializer):  # set answer
     user = serializers.HiddenField(default=serializers.CurrentUserDefault())
     status = serializers.HiddenField(default=UserTask.COMPLETED)
 
@@ -62,7 +62,7 @@ class CompletedTaskSerializer(serializers.ModelSerializer):
         fields = ('id', 'task', 'answer', 'user')
 
 
-class VoitingSerializer(serializers.ModelSerializer):
+class VoitingSerializer(serializers.ModelSerializer):  # set voite
     likes = serializers.HiddenField(default=serializers.CurrentUserDefault())
 
     class Meta:
