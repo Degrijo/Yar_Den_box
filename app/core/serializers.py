@@ -1,10 +1,22 @@
-from django.db.models import Sum
 from django.contrib.auth import get_user_model
-from django.contrib.auth.validators import UnicodeUsernameValidator
 
 from rest_framework import serializers
 
-from app.core.models import Room, Task, UserTask
+from app.core.models import Room, Task, UserTaskRoom
+
+
+class SigUpSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = get_user_model()
+        fields = ('username', 'email', 'password')
+
+
+class LogInSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = get_user_model()
+        fields = ('username', 'password')
 
 
 class HostRoomSerializer(serializers.ModelSerializer):
@@ -46,10 +58,10 @@ class TaskSerializer(serializers.ModelSerializer):
 
 class AnswerSerializer(serializers.ModelSerializer):  # set answer
     user = serializers.HiddenField(default=serializers.CurrentUserDefault())
-    status = serializers.HiddenField(default=UserTask.COMPLETED)
+    status = serializers.HiddenField(default=UserTaskRoom.COMPLETED)
 
     class Meta:
-        model = UserTask
+        model = UserTaskRoom
         fields = ('user', 'task_id', 'answer', 'status')
 
 
@@ -58,7 +70,7 @@ class CompletedTaskSerializer(serializers.ModelSerializer):
     user = serializers.CharField(source='user.username')
 
     class Meta:
-        model = UserTask
+        model = UserTaskRoom
         fields = ('id', 'task', 'answer', 'user')
 
 
@@ -66,5 +78,5 @@ class VoitingSerializer(serializers.ModelSerializer):  # set voite
     likes = serializers.HiddenField(default=serializers.CurrentUserDefault())
 
     class Meta:
-        model = UserTask
+        model = UserTaskRoom
         fields = ('id', 'likes')
