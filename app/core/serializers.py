@@ -12,10 +12,11 @@ class SigUpSerializer(serializers.ModelSerializer):
         fields = ('username', 'email', 'password')
 
 
-class LogInSerializer(serializers.ModelSerializer):
+class LogInSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    password = serializers.CharField(max_length=128)
 
     class Meta:
-        model = get_user_model()
         fields = ('username', 'password')
 
 

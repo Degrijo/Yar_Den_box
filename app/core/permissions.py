@@ -22,11 +22,11 @@ class WorkingRoomPermission(IsAuthenticated):
     message = "For access this view room's status should be Working"
 
     def has_permission(self, request, view):
-        return super().has_permission(request, view) and request.user.room.status == Room.WORKING
+        return super().has_permission(request, view) and request.user.room and request.user.room.status == Room.WORKING
 
 
 class PendingRoomPermission(IsAuthenticated):
     message = "For access this view room's status should be Pending"
 
     def has_permission(self, request, view):
-        return super().has_permission(request, view) and request.user.room.status == Room.PENDING
+        return super().has_permission(request, view) and request.user.room and request.user.room.status == Room.PENDING

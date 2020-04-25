@@ -13,7 +13,7 @@ class CustomUser(AbstractUser):
         (PLAYER, 'Player'),
     )
     role = models.PositiveSmallIntegerField(default=OBSERVER, choices=ROLE_TYPES)
-    room = models.ForeignKey('Room', on_delete=models.CASCADE, related_name='users')
+    room = models.ForeignKey('Room', blank=True, null=True, on_delete=models.CASCADE, related_name='users')
     score = models.PositiveSmallIntegerField(default=0)
 
     class Meta:

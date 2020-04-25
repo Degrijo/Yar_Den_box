@@ -7,7 +7,7 @@ from rest_framework_swagger.views import get_swagger_view
 
 from app.core.views import AuthorizationViewSet, PlayerViewSet, HostViewSet, GameViewSet
 
-schema_view = get_swagger_view(title='Pastebin API')
+schema_view = get_swagger_view(title='Yar Den Box API')
 
 
 urlpatterns = [

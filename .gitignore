@@ -6,3 +6,4 @@ static/
 media/
 local.py
 .env
+questions.txt

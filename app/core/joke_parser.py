@@ -10,7 +10,7 @@ SITE_URL = r'https://baza-otvetov.ru'
 r = requests.get(SITE_URL + r'/crosswords')
 soup = BeautifulSoup(r.text, 'html.parser')
 jokes = soup.find_all('h3', {'class': 'crossword-list__group-title'})
-with open('./questions.txt', 'w', encoding='utf-8') as file:
+with open('../../questions.txt', 'w', encoding='utf-8') as file:
     for tag in jokes:
         category = tag.text
         for cross in tag.nextSibling.findChildren(recursive=False):

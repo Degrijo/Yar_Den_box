@@ -14,7 +14,7 @@ import io
 # with io.open(path, encoding='utf-8') as f:
 #     text = f.read().lower()
 # print('corpus length:', len(text))
-with open('./questions.txt', 'r') as f:
+with open('../../questions.txt', 'r') as f:
     text = f.read().lower()
 
 chars = sorted(list(set(text)))

@@ -38,7 +38,7 @@ class AuthorizationViewSet(GenericViewSet):
     def get_serializer_class(self):
         if self.action == 'signup':
             return SigUpSerializer
-        if self.action == 'authenticate':
+        if self.action == 'login':
             return LogInSerializer
 
     @action(methods=['POST'], detail=False, url_path='')
@@ -50,10 +50,10 @@ class AuthorizationViewSet(GenericViewSet):
         return Response(status=status.HTTP_201_CREATED)
 
     @action(methods=['POST'], detail=False, url_path='')
-    def authenticate(self, request, *args, **kwargs):
+    def login(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = authenticate(request, username=serializer.data, email=serializer.data, password=serializer.data)
+        user = authenticate(request, username=serializer.data['username'], password=serializer.data['password'])
         if user:
             login(request, user)
         else:
