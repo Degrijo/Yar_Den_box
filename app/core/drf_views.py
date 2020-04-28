@@ -1,39 +1,31 @@
 from string import ascii_uppercase, digits
 from random import choices, sample, shuffle
 
-from django.contrib.auth import login, authenticate, logout, get_user_model
+from django.contrib.auth import get_user_model, authenticate
 from django.shortcuts import get_object_or_404
-from django.shortcuts import render
+from django.db.models import Count
 
 from rest_framework.viewsets import GenericViewSet
-from rest_framework.views import APIView
-from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin, DestroyModelMixin
-from rest_framework.permissions import AllowAny
+from rest_framework.mixins import ListModelMixin, CreateModelMixin
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.reverse import reverse
+from rest_framework.authtoken.models import Token
 
 from app.core.models import Room, Task, UserTaskRoom
-from app.core.serializers import SigUpSerializer, LogInSerializer, PlayerRoomSerializer, HostRoomSerializer, \
-    TaskSerializer, AnswerSerializer, VoitingSerializer
-from app.core.permissions import HostPermission, PlayerPermission, WorkingRoomPermission, PendingRoomPermission
-
-
-# def home(request):
-#     data = {
-#         'Total users': GeneralVariable.objects.get(name='Users counter').value,
-#         'Total rooms': GeneralVariable.objects.get(name='Rooms counter').value,
-#         'Total tasks': GeneralVariable.objects.get(name='Own tasks counter').value,
-#         'Playing now': get_user_model().objects.count(),
-#         'Active rooms': Room.objects.count()
-#     }
-#     return render(request, 'home.html', context={'data': data})
+from app.core.serializers import SigUpSerializer, LogInSerializer, HostRoomSerializer, ConnectGameSerializer, \
+    TaskSerializer, AnswerSerializer, VoitingSerializer, RoomSerializer
+from app.core.permissions import AuthTokenPermission, HostPermission, PlayerPermission, WorkingRoomPermission, \
+    PendingRoomPermission
 
 
 class AuthorizationViewSet(GenericViewSet):
-    permission_classes = [AllowAny]
     queryset = get_user_model().objects.all()
+
+    def get_permissions(self):
+        if self.action == 'logout':
+            return [AuthTokenPermission()]
+        return super().get_permissions()
 
     def get_serializer_class(self):
         if self.action == 'signup':
@@ -46,8 +38,8 @@ class AuthorizationViewSet(GenericViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        login(request, user)
-        return Response(status=status.HTTP_201_CREATED)
+        token = Token.objects.create(user=user)
+        return Response({'token': token.key}, status=status.HTTP_201_CREATED)
 
     @action(methods=['POST'], detail=False, url_path='')
     def login(self, request, *args, **kwargs):
@@ -55,46 +47,45 @@ class AuthorizationViewSet(GenericViewSet):
         serializer.is_valid(raise_exception=True)
         user = authenticate(request, username=serializer.data['username'], password=serializer.data['password'])
         if user:
-            login(request, user)
+            token = user.auth_token.generate_key()
+            user.auth_token.update(key=token)
         else:
             return Response(status=status.HTTP_400_BAD_REQUEST)
-        return Response(status=status.HTTP_200_OK)
+        return Response({'token': token}, status=status.HTTP_201_CREATED)
 
     @action(methods=['DELETE'], detail=False, url_path='')
     def logout(self, request, *args, **kwargs):
-        logout(request)
+        request.user.auth_token.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class PlayerViewSet(GenericViewSet, ListModelMixin, CreateModelMixin):
+class PlayerViewSet(GenericViewSet):
     queryset = get_user_model().objects.none()
+    permission_classes = [AuthTokenPermission]
+    serializer_class = ConnectGameSerializer
 
-    def get_serializer_class(self, *args, **kwargs):
-        return PlayerRoomSerializer
-
-    def create(self, request, *args, **kwargs):
+    @action(methods=['POST'], detail=False, url_path='connect-game')
+    def connect_game(self, request, *args, **kwargs):
         room = get_object_or_404(Room, address=request.data['address'])
         if room.status != Room.PENDING:
             return Response(data='The game started yet', status=status.HTTP_400_BAD_REQUEST)
-        user = get_user_model().objects.create(username=request.data['username'], room=room,
-                                               role=get_user_model().PLAYER)
-        login(request, user)
-        serializer = self.get_serializer(user)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        get_user_model().objects.create(username=request.data['username'], room=room, role=get_user_model().PLAYER)
+        return Response(status=status.HTTP_201_CREATED)
 
 
-class HostViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
+class HostViewSet(GenericViewSet):
     queryset = get_user_model().objects.none()
 
     def get_permissions(self):
-        if self.action in ['start_game', 'delete']:
+        if self.action in ['start_game', 'finish_game']:
             return [HostPermission()]
-        return super().get_permissions()
+        return [AuthTokenPermission()]
 
     def get_serializer_class(self):
         return HostRoomSerializer
 
-    def create(self, request, *args, **kwargs):
+    @action(methods=['POST'], detail=False, url_path='create-game')
+    def create_game(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         while True:
@@ -109,7 +100,7 @@ class HostViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
         serializer = self.get_serializer(user)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    @action(methods=['PUT'], detail=False, url_path='start-game')
+    @action(methods=['POST'], detail=False, url_path='start-game')
     def start_game(self, request):
         room = request.user.room
         user_count = room.users.count()
@@ -130,16 +121,15 @@ class HostViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
         for i in range(user_count):
             UserTaskRoom.objects.create(task_id=game_tasks[i], user_id=users[i], scope_cost=scope_cost)
             UserTaskRoom.objects.create(task_id=repetitive_tasks[i], user_id=users[i], scope_cost=scope_cost)
-        return Response(status=status.HTTP_201_CREATED)
+        return Response(status=status.HTTP_200_OK)
 
-    @action(methods=['DELETE'], detail=False, url_path='delete')
-    def delete(self):
-        self.request.user.room.delete()
+    @action(methods=['DELETE'], detail=False, url_path='finish-game')
+    def finish_game(self):
+        self.request.user.room.status = Room.FINISHED
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class GameViewSet(GenericViewSet, ListModelMixin):
-    queryset = Room.objects.none()
     permission_classes = [WorkingRoomPermission]
 
     def get_queryset(self):
@@ -147,15 +137,22 @@ class GameViewSet(GenericViewSet, ListModelMixin):
             return get_user_model().objects.all()
         elif self.action == 'set-answer':
             return UserTaskRoom.objects.all()
-        return Room.objects.all()
+        return Room.objects.filter(status=Room.PENDING)
 
     def get_serializer_class(self, *args, **kwargs):
-        if self.action == 'get_task':
+        if self.action == 'get_tasks':
             return TaskSerializer
         elif self.action == 'set_answer':
             return AnswerSerializer
         elif self.action == 'set_voite':
             return VoitingSerializer
+        elif self.action == 'list':
+            return RoomSerializer
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset().annotate(capacity=Count('users'))
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     @action(methods=['GET'], detail=False, url_path='get-tasks')
     def get_tasks(self, request):

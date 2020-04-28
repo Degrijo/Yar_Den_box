@@ -31,30 +31,17 @@ class HostRoomSerializer(serializers.ModelSerializer):
         read_only_fields = ('id',)
 
 
-class PlayerRoomSerializer(serializers.ModelSerializer):
-    address = serializers.CharField(max_length=4, source='room.address')
+class ConnectGameSerializer(serializers.ModelSerializer):
 
     class Meta:
-        model = get_user_model()
-        fields = ('id', 'username', 'address')
-        read_only_fields = ('id',)
+        model = Room
+        fields = ('address',)
 
 
 class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = ('id', 'name', 'image')
-
-
-# class RoomSerializer(serializers.ModelSerializer):
-#     tasks = TaskSerializer(many=True)
-#
-#     class Meta:
-#         model = Room
-#         fields = ('id', 'current_task', 'tasks')
-#
-#     def get_tasks(self, obj):  # "Do anything": {'user1': ''}
-#         return obj.tasks.annotate()
 
 
 class AnswerSerializer(serializers.ModelSerializer):  # set answer
@@ -81,3 +68,10 @@ class VoitingSerializer(serializers.ModelSerializer):  # set voite
     class Meta:
         model = UserTaskRoom
         fields = ('id', 'likes')
+
+
+class RoomSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Room
+        fields = ('address', 'capacity', 'current_round', 'max_round', 'status')

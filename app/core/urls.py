@@ -3,9 +3,9 @@ import debug_toolbar
 from django.urls import path, include
 
 from rest_framework import routers
-from rest_framework_swagger.views import get_swagger_view
 
-from app.core.views import AuthorizationViewSet, PlayerViewSet, HostViewSet, GameViewSet
+from app.core.drf_views import AuthorizationViewSet, PlayerViewSet, HostViewSet, GameViewSet
+from app.core.swagger_views import get_swagger_view
 
 schema_view = get_swagger_view(title='Yar Den Box API')
 
