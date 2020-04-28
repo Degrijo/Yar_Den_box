@@ -12,10 +12,10 @@ class AuthTokenPermission(BasePermission):
     message = 'Auth token is not valid'
 
     def has_permission(self, request, view):
-        if not request.data.get('token'):
+        if not request.headers.get('Authorization'):
             return False
         try:
-            user = get_user_model().objects.get(auth_token__key=request.data.get('token'))
+            user = get_user_model().objects.get(auth_token__key=request.headers.get('Authorization'))
             if (datetime.now() - user.auth_token.created.replace(tzinfo=None)).days < AuthTokenValidTime:
                 request.user = user
                 return True

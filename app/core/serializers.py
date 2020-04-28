@@ -76,11 +76,3 @@ class RoomSerializer(serializers.ModelSerializer):
     class Meta:
         model = Room
         fields = ('address', 'capacity', 'current_round', 'max_round', 'status')
-
-
-class TokenSerializer(serializers.ModelSerializer):
-    token = serializers.CharField(source='key')
-
-    class Meta:
-        model = Token
-        fields = ('token',)

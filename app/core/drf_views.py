@@ -14,7 +14,7 @@ from rest_framework.authtoken.models import Token
 
 from app.core.models import Room, Task, UserTaskRoom
 from app.core.serializers import SigUpSerializer, LogInSerializer, HostRoomSerializer, ConnectGameSerializer, \
-    TaskSerializer, AnswerSerializer, VoitingSerializer, RoomSerializer, TokenSerializer
+    TaskSerializer, AnswerSerializer, VoitingSerializer, RoomSerializer
 from app.core.permissions import AuthTokenPermission, HostPermission, PlayerPermission, WorkingRoomPermission, \
     PendingRoomPermission
 
@@ -32,7 +32,6 @@ class AuthorizationViewSet(GenericViewSet):
             return SigUpSerializer
         if self.action == 'login':
             return LogInSerializer
-        return TokenSerializer
 
     @action(methods=['POST'], detail=False, url_path='')
     def signup(self, request, *args, **kwargs):
@@ -54,7 +53,7 @@ class AuthorizationViewSet(GenericViewSet):
             return Response(status=status.HTTP_400_BAD_REQUEST)
         return Response({'token': token.key}, status=status.HTTP_201_CREATED)
 
-    @action(methods=['POST'], detail=False, url_path='')
+    @action(methods=['DELETE'], detail=False, url_path='')
     def logout(self, request, *args, **kwargs):
         request.user.auth_token.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -138,7 +137,7 @@ class GameViewSet(GenericViewSet, ListModelMixin):
             return get_user_model().objects.all()
         elif self.action == 'set-answer':
             return UserTaskRoom.objects.all()
-        return Room.objects.filter(status=Room.PENDING)
+        return Room.objects.all()
 
     def get_serializer_class(self, *args, **kwargs):
         if self.action == 'get_tasks':
