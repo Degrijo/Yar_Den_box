@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 
 from rest_framework import serializers
+from rest_framework.authtoken.models import Token
 
 from app.core.models import Room, Task, UserTaskRoom
 
@@ -75,3 +76,11 @@ class RoomSerializer(serializers.ModelSerializer):
     class Meta:
         model = Room
         fields = ('address', 'capacity', 'current_round', 'max_round', 'status')
+
+
+class TokenSerializer(serializers.ModelSerializer):
+    token = serializers.CharField(source='key')
+
+    class Meta:
+        model = Token
+        fields = ('token',)

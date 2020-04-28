@@ -16,7 +16,7 @@ class AuthTokenPermission(BasePermission):
             return False
         try:
             user = get_user_model().objects.get(auth_token__key=request.data.get('token'))
-            if (datetime.now() - user.created).days < AuthTokenValidTime:
+            if (datetime.now() - user.auth_token.created.replace(tzinfo=None)).days < AuthTokenValidTime:
                 request.user = user
                 return True
             return False

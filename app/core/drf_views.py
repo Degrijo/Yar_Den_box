@@ -14,7 +14,7 @@ from rest_framework.authtoken.models import Token
 
 from app.core.models import Room, Task, UserTaskRoom
 from app.core.serializers import SigUpSerializer, LogInSerializer, HostRoomSerializer, ConnectGameSerializer, \
-    TaskSerializer, AnswerSerializer, VoitingSerializer, RoomSerializer
+    TaskSerializer, AnswerSerializer, VoitingSerializer, RoomSerializer, TokenSerializer
 from app.core.permissions import AuthTokenPermission, HostPermission, PlayerPermission, WorkingRoomPermission, \
     PendingRoomPermission
 
@@ -32,6 +32,7 @@ class AuthorizationViewSet(GenericViewSet):
             return SigUpSerializer
         if self.action == 'login':
             return LogInSerializer
+        return TokenSerializer
 
     @action(methods=['POST'], detail=False, url_path='')
     def signup(self, request, *args, **kwargs):
@@ -47,13 +48,13 @@ class AuthorizationViewSet(GenericViewSet):
         serializer.is_valid(raise_exception=True)
         user = authenticate(request, username=serializer.data['username'], password=serializer.data['password'])
         if user:
-            token = user.auth_token.generate_key()
-            user.auth_token.update(key=token)
+            token = Token.objects.get_or_create(user=user)
+            token.update(key=token.generate_key())
         else:
             return Response(status=status.HTTP_400_BAD_REQUEST)
-        return Response({'token': token}, status=status.HTTP_201_CREATED)
+        return Response({'token': token.key}, status=status.HTTP_201_CREATED)
 
-    @action(methods=['DELETE'], detail=False, url_path='')
+    @action(methods=['POST'], detail=False, url_path='')
     def logout(self, request, *args, **kwargs):
         request.user.auth_token.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
