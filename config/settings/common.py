@@ -43,12 +43,14 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'debug_toolbar',
     'rest_framework_swagger',
+    'corsheaders',
     'app.core',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -150,3 +152,5 @@ INTERNAL_IPS = [
 ]
 
 AuthTokenValidTime = 3  # days
+
+CORS_ORIGIN_ALLOW_ALL = True
