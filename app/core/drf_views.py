@@ -4,28 +4,26 @@ from random import choices, sample, shuffle
 from django.contrib.auth import get_user_model, authenticate
 from django.shortcuts import get_object_or_404
 from django.db.models import Count
+from rest_framework.generics import CreateAPIView
 
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.mixins import ListModelMixin, CreateModelMixin
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.authtoken.models import Token
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.core.models import Room, Task, UserTaskRoom
 from app.core.serializers import SigUpSerializer, LogInSerializer, HostRoomSerializer, ConnectGameSerializer, \
     TaskSerializer, AnswerSerializer, VoitingSerializer, RoomSerializer
-from app.core.permissions import AuthTokenPermission, HostPermission, PlayerPermission, WorkingRoomPermission, \
+from app.core.permissions import HostPermission, PlayerPermission, WorkingRoomPermission, \
     PendingRoomPermission
 
 
 class AuthorizationViewSet(GenericViewSet):
     queryset = get_user_model().objects.all()
-
-    def get_permissions(self):
-        if self.action == 'logout':
-            return [AuthTokenPermission()]
-        return super().get_permissions()
+    permission_classes = [AllowAny]
 
     def get_serializer_class(self):
         if self.action == 'signup':
@@ -38,30 +36,26 @@ class AuthorizationViewSet(GenericViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        token = Token.objects.create(user=user)
-        return Response({'token': token.key}, status=status.HTTP_201_CREATED)
+        refresh = RefreshToken.for_user(user)
+        data = {'refresh': str(refresh), 'access': str(refresh.access_token)}
+        return Response(data, status=status.HTTP_201_CREATED)
 
     @action(methods=['POST'], detail=False, url_path='')
     def login(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = authenticate(request, username=serializer.data['username'], password=serializer.data['password'])
-        if user:
-            token = Token.objects.get_or_create(user=user)
-            token.update(key=token.generate_key())
-        else:
+        try:
+            user = get_user_model().objects.get(username=serializer.data['username'], password=serializer.data['password'])
+        except get_user_model().DoesNotExist:
             return Response(status=status.HTTP_400_BAD_REQUEST)
-        return Response({'token': token.key}, status=status.HTTP_201_CREATED)
-
-    @action(methods=['DELETE'], detail=False, url_path='')
-    def logout(self, request, *args, **kwargs):
-        request.user.auth_token.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        refresh = RefreshToken.for_user(user)
+        data = {'refresh': str(refresh), 'access': str(refresh.access_token)}
+        return Response(data, status=status.HTTP_201_CREATED)
 
 
 class PlayerViewSet(GenericViewSet):
     queryset = get_user_model().objects.none()
-    permission_classes = [AuthTokenPermission]
+    permission_classes = [IsAuthenticated]
     serializer_class = ConnectGameSerializer
 
     @action(methods=['POST'], detail=False, url_path='connect-game')
@@ -79,7 +73,7 @@ class HostViewSet(GenericViewSet):
     def get_permissions(self):
         if self.action in ['start_game', 'finish_game']:
             return [HostPermission()]
-        return [AuthTokenPermission()]
+        return [IsAuthenticated()]
 
     def get_serializer_class(self):
         return HostRoomSerializer

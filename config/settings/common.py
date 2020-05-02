@@ -40,7 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'rest_framework.authtoken',
+    'rest_framework_simplejwt',
     'debug_toolbar',
     'rest_framework_swagger',
     'corsheaders',
@@ -82,7 +82,11 @@ REST_FRAMEWORK = {
     'DEFAULT_METADATA_CLASS': 'rest_framework.metadata.SimpleMetadata',
     'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema',
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.permissions.IsAuthenticated',
     ],
 }
 
@@ -150,7 +154,5 @@ AUTH_USER_MODEL = 'core.CustomUser'
 INTERNAL_IPS = [
     '127.0.0.1',
 ]
-
-AuthTokenValidTime = 3  # days
 
 CORS_ORIGIN_ALLOW_ALL = True
