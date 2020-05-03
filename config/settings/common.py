@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 
 import os
 from decouple import config, Csv
+from datetime import timedelta
 
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -77,6 +78,10 @@ TEMPLATES = [
         },
     },
 ]
+
+SIMPLE_JWT = {
+    'TOKEN_LIFETIME': timedelta(seconds=3),
+}
 
 REST_FRAMEWORK = {
     'DEFAULT_METADATA_CLASS': 'rest_framework.metadata.SimpleMetadata',
