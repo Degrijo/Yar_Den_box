@@ -33,10 +33,10 @@ class Room(models.Model):
         (WORKING, 'Working'),
         (FINISHED, 'Finished')
     )
-    address = models.CharField(max_length=4, unique=True)
+    name = models.CharField(max_length=150, unique=True)
     current_round = models.PositiveSmallIntegerField(default=1)
     max_round = models.PositiveSmallIntegerField(default=3)
-    status = models.PositiveSmallIntegerField(default=PENDING)
+    status = models.PositiveSmallIntegerField(default=PENDING, choices=STATUS_TYPE)
     objects = models.Manager()
 
     class Meta:
@@ -44,7 +44,7 @@ class Room(models.Model):
         verbose_name_plural = "Rooms"
 
     def __str__(self):
-        return self.address
+        return self.name
 
 
 class Tag(models.Model):

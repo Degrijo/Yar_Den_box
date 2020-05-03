@@ -21,22 +21,18 @@ class LogInSerializer(serializers.Serializer):
         fields = ('username', 'password')
 
 
-class HostRoomSerializer(serializers.ModelSerializer):
-    address = serializers.CharField(max_length=4, source='room.address', read_only=True)
-    current_round = serializers.IntegerField(allow_null=True, source='room.current_round', read_only=True)
-    max_round = serializers.IntegerField(allow_null=True, source='room.max_round')
+class CreateGameSerializer(serializers.ModelSerializer):
 
     class Meta:
-        model = get_user_model()
-        fields = ('id', 'address', 'current_round', 'max_round', 'username')
-        read_only_fields = ('id',)
+        model = Room
+        fields = ('name', 'max_round')
 
 
 class ConnectGameSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Room
-        fields = ('address',)
+        fields = ('name',)
 
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -72,7 +68,12 @@ class VoitingSerializer(serializers.ModelSerializer):  # set voite
 
 
 class RoomSerializer(serializers.ModelSerializer):
+    capacity = serializers.IntegerField(min_value=0)
+    status = serializers.SerializerMethodField()
 
     class Meta:
         model = Room
-        fields = ('address', 'capacity', 'current_round', 'max_round', 'status')
+        fields = ('id', 'name', 'capacity', 'current_round', 'max_round', 'status')
+
+    def get_status(self, obj):
+        return dict(obj.STATUS_TYPE).get(obj.status)

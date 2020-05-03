@@ -7,23 +7,24 @@ from django.db.models import Count
 from rest_framework.generics import CreateAPIView
 
 from rest_framework.viewsets import GenericViewSet
-from rest_framework.mixins import ListModelMixin, CreateModelMixin
+from rest_framework.mixins import ListModelMixin
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.serializers import Serializer
 
 from app.core.models import Room, Task, UserTaskRoom
-from app.core.serializers import SigUpSerializer, LogInSerializer, HostRoomSerializer, ConnectGameSerializer, \
-    TaskSerializer, AnswerSerializer, VoitingSerializer, RoomSerializer
+from app.core.serializers import SigUpSerializer, LogInSerializer, ConnectGameSerializer, \
+    TaskSerializer, AnswerSerializer, VoitingSerializer, RoomSerializer, CreateGameSerializer
 from app.core.permissions import HostPermission, PlayerPermission, WorkingRoomPermission, \
     PendingRoomPermission
 
 
 class AuthorizationViewSet(GenericViewSet):
     queryset = get_user_model().objects.all()
-    permission_classes = [AllowAny]
+    authentication_classes = ()
 
     def get_serializer_class(self):
         if self.action == 'signup':
@@ -60,10 +61,13 @@ class PlayerViewSet(GenericViewSet):
 
     @action(methods=['POST'], detail=False, url_path='connect-game')
     def connect_game(self, request, *args, **kwargs):
-        room = get_object_or_404(Room, address=request.data['address'])
+        room = get_object_or_404(Room, name=request.data['name'])
         if room.status != Room.PENDING:
             return Response(data='The game started yet', status=status.HTTP_400_BAD_REQUEST)
-        get_user_model().objects.create(username=request.data['username'], room=room, role=get_user_model().PLAYER)
+        user = request.user
+        user.room = room
+        user.role = user.PLAYER
+        user.save()
         return Response(status=status.HTTP_201_CREATED)
 
 
@@ -76,23 +80,20 @@ class HostViewSet(GenericViewSet):
         return [IsAuthenticated()]
 
     def get_serializer_class(self):
-        return HostRoomSerializer
+        if self.action == 'create_game':
+            return CreateGameSerializer
+        return Serializer
 
     @action(methods=['POST'], detail=False, url_path='create-game')
     def create_game(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        while True:
-            address = ''.join(choices(ascii_uppercase + digits, k=Room._meta.get_field('address').max_length))
-            if not Room.objects.filter(address=address).exists():
-                break
-        room = Room.objects.create(address=address, max_round=request.data['max_round'])
+        room = Room.objects.create(name=serializer.validated_data['name'], max_round=serializer.validated_data['max_round'])
         user = request.user
         user.room = room
         user.role = user.HOST
         user.save()
-        serializer = self.get_serializer(user)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(status=status.HTTP_201_CREATED)
 
     @action(methods=['POST'], detail=False, url_path='start-game')
     def start_game(self, request):
@@ -123,13 +124,21 @@ class HostViewSet(GenericViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class GameViewSet(GenericViewSet, ListModelMixin):
+class MenuViewSet(GenericViewSet, ListModelMixin):
+    queryset = Room.objects.all()
+    serializer_class = RoomSerializer
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset().annotate(capacity=Count('users'))
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class GameViewSet(GenericViewSet):
     permission_classes = [WorkingRoomPermission]
 
     def get_queryset(self):
-        if self.action == 'join-room':
-            return get_user_model().objects.all()
-        elif self.action == 'set-answer':
+        if self.action == 'set-answer':
             return UserTaskRoom.objects.all()
         return Room.objects.all()
 
@@ -140,13 +149,6 @@ class GameViewSet(GenericViewSet, ListModelMixin):
             return AnswerSerializer
         elif self.action == 'set_voite':
             return VoitingSerializer
-        elif self.action == 'list':
-            return RoomSerializer
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset().annotate(capacity=Count('users'))
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
 
     @action(methods=['GET'], detail=False, url_path='get-tasks')
     def get_tasks(self, request):
