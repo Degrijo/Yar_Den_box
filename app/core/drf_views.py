@@ -1,10 +1,8 @@
-from string import ascii_uppercase, digits
-from random import choices, sample, shuffle
+from random import sample, shuffle
 
-from django.contrib.auth import get_user_model, authenticate
+from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from django.db.models import Count
-from rest_framework.generics import CreateAPIView
 
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.mixins import ListModelMixin

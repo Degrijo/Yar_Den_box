@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'debug_toolbar',
     'rest_framework_swagger',
     'corsheaders',
+    'channels',
     'app.core',
 ]
 
@@ -91,7 +92,15 @@ REST_FRAMEWORK = {
     ],
 }
 
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'asgiref.inmemory',
+        'ROUTING': 'config.routing',
+    },
+}
+
 WSGI_APPLICATION = 'config.wsgi.application'
+ASGI_APPLICATION = "config.asgi.application"
 
 
 # Database
