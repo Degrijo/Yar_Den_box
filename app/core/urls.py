@@ -16,7 +16,6 @@ urlpatterns = [
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('__debug__/', include(debug_toolbar.urls)),
     # path('statistic/', home),
-    path('', schema_view),
 ]
 
 router = routers.SimpleRouter()

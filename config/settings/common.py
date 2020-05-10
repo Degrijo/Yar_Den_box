@@ -43,7 +43,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'debug_toolbar',
-    'rest_framework_swagger',
     'corsheaders',
     'channels',
     'app.core',
@@ -80,10 +79,6 @@ TEMPLATES = [
     },
 ]
 
-SIMPLE_JWT = {
-    'TOKEN_LIFETIME': timedelta(seconds=3),
-}
-
 REST_FRAMEWORK = {
     'DEFAULT_METADATA_CLASS': 'rest_framework.metadata.SimpleMetadata',
     'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema',
@@ -93,14 +88,16 @@ REST_FRAMEWORK = {
 }
 
 CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'asgiref.inmemory',
-        'ROUTING': 'config.routing',
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
     },
 }
 
 WSGI_APPLICATION = 'config.wsgi.application'
-ASGI_APPLICATION = "config.asgi.application"
+ASGI_APPLICATION = "config.routing.application"
 
 
 # Database

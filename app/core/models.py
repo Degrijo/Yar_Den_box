@@ -61,7 +61,7 @@ class Tag(models.Model):
 
 class Task(models.Model):
     title = models.CharField(max_length=500, unique=True)
-    tag = models.ForeignKey(Tag, on_delete=models.PROTECT, related_name='tasks')
+    tag = models.ForeignKey(Tag, on_delete=models.PROTECT, related_name='tasks', blank=True, null=True)
     objects = models.Manager()
 
     class Meta:

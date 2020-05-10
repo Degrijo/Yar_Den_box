@@ -15,7 +15,8 @@ from rest_framework.serializers import Serializer
 
 from app.core.models import Room, Task, UserTaskRoom
 from app.core.serializers import SigUpSerializer, LogInSerializer, ConnectGameSerializer, \
-    TaskSerializer, AnswerSerializer, VoitingSerializer, RoomSerializer, CreateGameSerializer
+    TaskSerializer, AnswerSerializer, VoiteSerializer, ListRoomSerializer, CreateGameSerializer, RoomSerializer, \
+    VoitingSerializer
 from app.core.permissions import HostPermission, PlayerPermission, WorkingRoomPermission, \
     PendingRoomPermission
 
@@ -124,7 +125,7 @@ class HostViewSet(GenericViewSet):
 
 class MenuViewSet(GenericViewSet, ListModelMixin):
     queryset = Room.objects.all()
-    serializer_class = RoomSerializer
+    serializer_class = ListRoomSerializer
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset().annotate(capacity=Count('users'))
@@ -132,7 +133,7 @@ class MenuViewSet(GenericViewSet, ListModelMixin):
         return Response(serializer.data)
 
 
-class GameViewSet(GenericViewSet):
+class GameViewSet(GenericViewSet, ListModelMixin):
     permission_classes = [WorkingRoomPermission]
 
     def get_queryset(self):
@@ -141,12 +142,20 @@ class GameViewSet(GenericViewSet):
         return Room.objects.all()
 
     def get_serializer_class(self, *args, **kwargs):
-        if self.action == 'get_tasks':
+        if self.action == 'list':
+            return RoomSerializer
+        elif self.action == 'get_tasks':
             return TaskSerializer
         elif self.action == 'set_answer':
             return AnswerSerializer
         elif self.action == 'set_voite':
+            return VoiteSerializer
+        elif self.action == 'get_voites':
             return VoitingSerializer
+
+    def list(self, request, *args, **kwargs):
+        serializer = self.get_serializer(request.user.room)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(methods=['GET'], detail=False, url_path='get-tasks')
     def get_tasks(self, request):

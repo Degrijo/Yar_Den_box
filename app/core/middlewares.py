@@ -6,6 +6,5 @@ class MyMiddleware:
         self.inner = inner
 
     def __call__(self, scope):
-        scope['user'] = authentication.JWTAuthentication().authenticate(scope)[0]
         response = self.inner(scope)
         return response

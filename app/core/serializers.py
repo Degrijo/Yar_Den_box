@@ -38,7 +38,7 @@ class ConnectGameSerializer(serializers.ModelSerializer):
 class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
-        fields = ('id', 'name', 'image')
+        fields = ('id', 'name')
 
 
 class AnswerSerializer(serializers.ModelSerializer):  # set answer
@@ -59,7 +59,7 @@ class CompletedTaskSerializer(serializers.ModelSerializer):
         fields = ('id', 'task', 'answer', 'user')
 
 
-class VoitingSerializer(serializers.ModelSerializer):  # set voite
+class VoiteSerializer(serializers.ModelSerializer):  # set voite
     likes = serializers.HiddenField(default=serializers.CurrentUserDefault())
 
     class Meta:
@@ -67,13 +67,31 @@ class VoitingSerializer(serializers.ModelSerializer):  # set voite
         fields = ('id', 'likes')
 
 
-class RoomSerializer(serializers.ModelSerializer):
+class ListRoomSerializer(serializers.ModelSerializer):
     capacity = serializers.IntegerField(min_value=0)
     status = serializers.SerializerMethodField()
 
     class Meta:
         model = Room
-        fields = ('id', 'name', 'capacity', 'current_round', 'max_round', 'status')
+        fields = ('name', 'capacity', 'current_round', 'max_round', 'status')
 
     def get_status(self, obj):
         return dict(obj.STATUS_TYPE).get(obj.status)
+
+
+class RoomSerializer(serializers.ModelSerializer):
+    users = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Room
+        fields = ('name', 'current_round', 'users')
+
+    def get_users(self, obj):
+        return obj.users.values_list('username', flat=True)
+
+
+class VoitingSerializer(serializers.ModelSerializer):
+
+    class Model:
+        model = UserTaskRoom
+        fields = ('id', 'likes')
