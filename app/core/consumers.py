@@ -2,6 +2,8 @@ from asgiref.sync import async_to_sync
 from channels.generic.websocket import WebsocketConsumer
 from channels.db import database_sync_to_async
 
+from rest_framework_simplejwt import authentication
+
 import json
 
 from app.core.models import Room
@@ -19,18 +21,22 @@ class RoomConsumer(WebsocketConsumer):
 
     def receive(self, text_data=None, bytes_data=None, **kwargs):
         text_data_json = json.loads(text_data)
-        username = text_data_json.get('username')
-        async_to_sync(self.channel_layer.group_send)(self.room_group_name, {
-            'type': 'input_room',
-            'username': username
-        })
+        token = text_data_json.get('token')
+        user = authentication.JWTAuthentication().get_user(token)
+        room = user.room
+        async_to_sync(self.channel_layer.group_send)(self.room_group_name)
 
     def chat_message(self, event):
-        username = event.get('username')
-        self.send(text_data=json.dumps({
-            'event': 'Send',
-            'username': username
-        }))
+        data = self.connect()
+        self.send(text_data=json.dumps(data))
 
+    async def connect(self):
+        return await database_sync_to_async(self.get_inf)()
 
-
+    def get_inf(self):
+        room = Room.objects.get(name=self.room_name)
+        return {
+            "room": room.name,
+             "users": list(room.users.values('id', "username", "score")),
+             "tasks": list(room.userroomtasks.values("task_id", "user_id", "status", "likes"))
+        }

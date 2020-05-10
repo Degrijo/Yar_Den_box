@@ -1,6 +1,3 @@
-from rest_framework_simplejwt import authentication
-
-
 class MyMiddleware:
     def __init__(self, inner):
         self.inner = inner
