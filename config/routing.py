@@ -6,9 +6,8 @@ from app.core.middlewares import MyMiddleware
 from app.core.consumers import RoomConsumer
 
 application = ProtocolTypeRouter({
-    "websocket": AuthMiddlewareStack(
+    "websocket":
         URLRouter([
             re_path(r'game/(?P<room_name>\w+)/$', RoomConsumer),
         ])
-    )
 })

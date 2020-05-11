@@ -11,5 +11,5 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         task_count = Task.objects.count() + 1
         for i in range(options.get('number', 1)):
-            Task.objects.create(name=f'Test task №{task_count + i}')
+            Task.objects.create(title=f'Test task №{task_count + i}')
             self.stdout.write(self.style.SUCCESS(f'Successfully creating test task №{task_count + i}'))
