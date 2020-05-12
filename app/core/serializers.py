@@ -1,9 +1,8 @@
 from django.contrib.auth import get_user_model
 
 from rest_framework import serializers
-from rest_framework.authtoken.models import Token
 
-from app.core.models import Room, Task, UserTaskRoom
+from app.core.models import Room
 
 
 class SigUpSerializer(serializers.ModelSerializer):
@@ -35,38 +34,6 @@ class ConnectGameSerializer(serializers.ModelSerializer):
         fields = ('name',)
 
 
-class TaskSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Task
-        fields = ('id', 'name')
-
-
-class AnswerSerializer(serializers.ModelSerializer):  # set answer
-    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
-    status = serializers.HiddenField(default=UserTaskRoom.COMPLETED)
-
-    class Meta:
-        model = UserTaskRoom
-        fields = ('user', 'task_id', 'answer', 'status')
-
-
-class CompletedTaskSerializer(serializers.ModelSerializer):
-    task = serializers.CharField(max_length=500, source='task.name')
-    user = serializers.CharField(source='user.username')
-
-    class Meta:
-        model = UserTaskRoom
-        fields = ('id', 'task', 'answer', 'user')
-
-
-class VoiteSerializer(serializers.ModelSerializer):  # set voite
-    likes = serializers.HiddenField(default=serializers.CurrentUserDefault())
-
-    class Meta:
-        model = UserTaskRoom
-        fields = ('id', 'likes')
-
-
 class ListRoomSerializer(serializers.ModelSerializer):
     capacity = serializers.IntegerField(min_value=0)
     status = serializers.SerializerMethodField()
@@ -79,19 +46,12 @@ class ListRoomSerializer(serializers.ModelSerializer):
         return dict(obj.STATUS_TYPE).get(obj.status)
 
 
-class RoomSerializer(serializers.ModelSerializer):
-    users = serializers.SerializerMethodField()
+class UserSerializer(serializers.ModelSerializer):
+    role = serializers.SerializerMethodField()
 
     class Meta:
-        model = Room
-        fields = ('name', 'current_round', 'users')
+        model = get_user_model()
+        fields = ('username', 'email', 'score', 'role')
 
-    def get_users(self, obj):
-        return obj.users.values_list('username', flat=True)
-
-
-class VoitingSerializer(serializers.ModelSerializer):
-
-    class Model:
-        model = UserTaskRoom
-        fields = ('id', 'likes')
+    def get_role(self, obj):
+        return dict(obj.ROLE_TYPES).get(obj.role)

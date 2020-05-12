@@ -37,6 +37,7 @@ class Room(models.Model):
     current_round = models.PositiveSmallIntegerField(default=1)
     max_round = models.PositiveSmallIntegerField(default=3)
     status = models.PositiveSmallIntegerField(default=PENDING, choices=STATUS_TYPE)
+    tasks = models.ManyToManyField('Task', related_name='rooms', through='UserTaskRoom')
     objects = models.Manager()
 
     class Meta:

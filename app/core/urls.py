@@ -6,7 +6,7 @@ from rest_framework import routers
 
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from app.core.drf_views import AuthorizationViewSet, PlayerViewSet, HostViewSet, GameViewSet, MenuViewSet
+from app.core.drf_views import AuthorizationViewSet, PlayerViewSet, HostViewSet, MenuViewSet
 from app.core.swagger_views import get_swagger_view
 
 schema_view = get_swagger_view(title='Yar Den Box API')
@@ -23,5 +23,4 @@ router.register(r'auth', AuthorizationViewSet, basename='auth')
 router.register(r'host', HostViewSet, basename='host')
 router.register(r'player', PlayerViewSet, basename='player')
 router.register(r'menu', MenuViewSet, basename='menu')
-router.register(r'game', GameViewSet, basename='game')
 urlpatterns += router.urls

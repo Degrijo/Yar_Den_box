@@ -14,11 +14,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.serializers import Serializer
 
 from app.core.models import Room, Task, UserTaskRoom
-from app.core.serializers import SigUpSerializer, LogInSerializer, ConnectGameSerializer, \
-    TaskSerializer, AnswerSerializer, VoiteSerializer, ListRoomSerializer, CreateGameSerializer, RoomSerializer, \
-    VoitingSerializer
-from app.core.permissions import HostPermission, PlayerPermission, WorkingRoomPermission, \
-    PendingRoomPermission
+from app.core.serializers import SigUpSerializer, LogInSerializer, ConnectGameSerializer, ListRoomSerializer, \
+    CreateGameSerializer, UserSerializer
+from app.core.permissions import HostPermission
 
 
 class AuthorizationViewSet(GenericViewSet):
@@ -125,62 +123,19 @@ class HostViewSet(GenericViewSet):
 
 class MenuViewSet(GenericViewSet, ListModelMixin):
     queryset = Room.objects.all()
-    serializer_class = ListRoomSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return ListRoomSerializer
+        return UserSerializer
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset().annotate(capacity=Count('users'))
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
-
-class GameViewSet(GenericViewSet, ListModelMixin):
-    permission_classes = [WorkingRoomPermission]
-
-    def get_queryset(self):
-        if self.action == 'set-answer':
-            return UserTaskRoom.objects.all()
-        return Room.objects.all()
-
-    def get_serializer_class(self, *args, **kwargs):
-        if self.action == 'list':
-            return RoomSerializer
-        elif self.action == 'get_tasks':
-            return TaskSerializer
-        elif self.action == 'set_answer':
-            return AnswerSerializer
-        elif self.action == 'set_voite':
-            return VoiteSerializer
-        elif self.action == 'get_voites':
-            return VoitingSerializer
-
-    def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(request.user.room)
+    @action(methods=['GET'], detail=False, url_path='user-inf')
+    def user_inf(self, request):
+        serializer = self.get_serializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
-    @action(methods=['GET'], detail=False, url_path='get-tasks')
-    def get_tasks(self, request):
-        qr = self.get_queryset().filter(userroomtask__status=UserTaskRoom.PENDING, userroomtask__user=request.user)
-        serializer = self.get_serializer(qr, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    @action(methods=['POST'], detail=False, url_path='set-answer')
-    def set_answer(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(status=status.HTTP_200_OK)
-
-    @action(methods=['GET'], detail=False, url_path='get-answers')
-    def get_answers(self, request):
-        return self.get_queryset().filter(user__room=request.user.room, status=UserTaskRoom.COMPLETED)
-
-    @action(methods=['POST'], detail=False, url_path='set-voite')
-    def set_voite(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()  # test
-        return Response(status=status.HTTP_200_OK)
-
-    @action(methods=['GET'], detail=False, url_path='get-voites')
-    def get_voites(self, request):
-        pass
