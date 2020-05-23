@@ -1,5 +1,7 @@
 from random import sample, shuffle
 
+import requests
+
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from django.db.models import Count
@@ -124,6 +126,7 @@ class HostViewSet(GenericViewSet):
 class MenuViewSet(GenericViewSet, ListModelMixin):
     queryset = Room.objects.all()
     permission_classes = [IsAuthenticated]
+    SITE_URL = 'http://127.0.0.1:5000/'
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -139,3 +142,8 @@ class MenuViewSet(GenericViewSet, ListModelMixin):
     def user_inf(self, request):
         serializer = self.get_serializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(methods=['GET'], detail=False, url_path='get-tasks')
+    def get_tasks(self, request):
+        r = requests.get(self.SITE_URL)
+        return Response(r.text, status=status.HTTP_200_OK)

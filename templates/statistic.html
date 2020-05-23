@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    {% for key, value in data.items %}
+        <div class="row">
+            <div class="col-xs-8 ml-3">
+                {{ key }}
+            </div>
+            <div class="col-xs-4 ml-5">
+                {{ value }}
+            </div>
+        </div>
+    {% endfor %}
+{% endblock %}
