@@ -2,7 +2,6 @@
 venv/
 __pycache__/
 db.qslite3
-static/
 media/
 local.py
 .env
