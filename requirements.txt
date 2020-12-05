@@ -18,7 +18,7 @@ chardet==3.0.4            # via -r requirements.txt, requests
 constantly==15.1.0        # via -r requirements.txt, twisted
 coreapi==2.3.3            # via -r requirements.txt, django-rest-swagger, openapi-codec
 coreschema==0.0.4         # via -r requirements.txt, coreapi
-cryptography==2.9.2       # via -r requirements.txt, autobahn, pyopenssl, service-identity
+cryptography==3.2       # via -r requirements.txt, autobahn, pyopenssl, service-identity
 daphne==2.5.0             # via -r requirements.txt, channels
 django-cors-headers==3.2.1  # via -r requirements.txt
 django-debug-toolbar==2.2  # via -r requirements.txt
