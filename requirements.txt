@@ -23,7 +23,7 @@ daphne==2.5.0             # via -r requirements.txt, channels
 django-cors-headers==3.2.1  # via -r requirements.txt
 django-debug-toolbar==2.2  # via -r requirements.txt
 django-rest-swagger==2.2.0  # via -r requirements.txt
-django==3.0.6             # via -r requirements.txt, channels, django-cors-headers, django-debug-toolbar, djangorestframework, djangorestframework-simplejwt
+django==3.0.7             # via -r requirements.txt, channels, django-cors-headers, django-debug-toolbar, djangorestframework, djangorestframework-simplejwt
 djangorestframework-simplejwt==4.4.0  # via -r requirements.txt
 djangorestframework==3.11.0  # via -r requirements.txt, django-rest-swagger, djangorestframework-simplejwt
 gunicorn==20.0.4          # via -r requirements.txt
