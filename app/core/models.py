@@ -4,17 +4,7 @@ from django.contrib.auth import get_user_model
 
 
 class CustomUser(AbstractUser):
-    OBSERVER = 0
-    HOST = 1
-    PLAYER = 2
-    ROLE_TYPES = (
-        (OBSERVER, 'Observer'),
-        (HOST, 'Host'),
-        (PLAYER, 'Player'),
-    )
-    role = models.PositiveSmallIntegerField(default=OBSERVER, choices=ROLE_TYPES)
-    room = models.ForeignKey('Room', blank=True, null=True, on_delete=models.CASCADE, related_name='users')
-    score = models.PositiveSmallIntegerField(default=0)
+    rooms = models.ManyToManyField('core.Room', related_name='users', through='core.Player')
 
     class Meta:
         verbose_name = "User"
@@ -37,7 +27,7 @@ class Room(models.Model):
     current_round = models.PositiveSmallIntegerField(default=1)
     max_round = models.PositiveSmallIntegerField(default=3)
     status = models.PositiveSmallIntegerField(default=PENDING, choices=STATUS_TYPE)
-    tasks = models.ManyToManyField('Task', related_name='rooms', through='UserTaskRoom')
+    tasks = models.ManyToManyField('core.Task', related_name='rooms', through='UserTaskRoom')
     objects = models.Manager()
 
     class Meta:
@@ -46,6 +36,13 @@ class Room(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class Player(models.Model):
+    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='players')
+    room = models.ForeignKey('core.Room', on_delete=models.CASCADE, related_name='players')
+    host = models.BooleanField(default=False)
+    score = models.PositiveSmallIntegerField(default=0)
 
 
 class Tag(models.Model):
@@ -62,7 +59,7 @@ class Tag(models.Model):
 
 class Task(models.Model):
     title = models.CharField(max_length=500, unique=True)
-    tag = models.ForeignKey(Tag, on_delete=models.PROTECT, related_name='tasks', blank=True, null=True)
+    tag = models.ForeignKey('core.Tag', on_delete=models.PROTECT, related_name='tasks', blank=True, null=True)
     objects = models.Manager()
 
     class Meta:
@@ -82,9 +79,9 @@ class UserTaskRoom(models.Model):
         (COMPLETED, 'Completed'),
         (FINISHED, 'Finished')
     )
-    task = models.ForeignKey('Task', on_delete=models.CASCADE, related_name='userroomtasks')
-    room = models.ForeignKey('Room', on_delete=models.CASCADE, related_name='userroomtasks')
-    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='userroomtasks')
+    task = models.ForeignKey('core.Task', on_delete=models.CASCADE, related_name='userroomtasks')
+    room = models.ForeignKey('core.Room', on_delete=models.CASCADE, related_name='userroomtasks')
+    player = models.ForeignKey('core.Player', on_delete=models.CASCADE, related_name='userroomtasks')
     answer = models.CharField(max_length=500, blank=True)
     likes = models.ManyToManyField(get_user_model(), related_name='liked_answers')
     status = models.PositiveSmallIntegerField(default=PENDING)

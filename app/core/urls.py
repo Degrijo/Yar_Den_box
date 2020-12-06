@@ -1,6 +1,7 @@
 import debug_toolbar
 
 from django.urls import path, include
+from django.contrib import admin
 
 from rest_framework import routers
 
@@ -16,6 +17,7 @@ schema_view = get_swagger_view(title='Yar Den Box API')
 urlpatterns = [
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('__debug__/', include(debug_toolbar.urls)),
+    path('admin/', admin.site.urls),
     path('statistic/', statistic),
     path('', home),
     path('algorithm/', algorithm),

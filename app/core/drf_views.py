@@ -15,7 +15,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.serializers import Serializer
 
-from app.core.models import Room, Task, UserTaskRoom
+from app.core.models import Room, Task, UserTaskRoom, Player
 from app.core.serializers import SigUpSerializer, LogInSerializer, ConnectGameSerializer, ListRoomSerializer, \
     CreateGameSerializer, UserSerializer
 from app.core.permissions import HostPermission
@@ -65,7 +65,6 @@ class PlayerViewSet(GenericViewSet):
             return Response(data='The game started yet', status=status.HTTP_400_BAD_REQUEST)
         user = request.user
         user.room = room
-        user.role = user.PLAYER
         user.save()
         return Response(status=status.HTTP_201_CREATED)
 
@@ -89,38 +88,8 @@ class HostViewSet(GenericViewSet):
         serializer.is_valid(raise_exception=True)
         room = Room.objects.create(name=serializer.validated_data['name'], max_round=serializer.validated_data['max_round'])
         user = request.user
-        user.room = room
-        user.role = user.HOST
-        user.save()
+        Player.objects.create(user=user, room=room, host=True)
         return Response(status=status.HTTP_201_CREATED)
-
-    @action(methods=['POST'], detail=False, url_path='start-game')
-    def start_game(self, request):
-        room = request.user.room
-        user_count = room.users.count()
-        if user_count < 3:
-            return Response(data='Counter of user smaller than 3', status=status.HTTP_400_BAD_REQUEST)
-        tasks = Task.objects.exclude(users__room__id=room.id)
-        if tasks.count() < user_count:
-            return Response(data='Task counter should be bigger or equal than user counter',
-                            status=status.HTTP_204_NO_CONTENT)
-        room.status = Room.WORKING
-        room.save()
-        game_tasks = sample(list(tasks.values_list('id', flat=True)), k=user_count)
-        repetitive_tasks = game_tasks.copy()
-        repetitive_tasks.append(repetitive_tasks.pop(0))
-        users = list(room.users.values_list('id', flat=True))
-        shuffle(users)
-        scope_cost = room.current_round * (user_count - 2) * 10
-        for i in range(user_count):
-            UserTaskRoom.objects.create(task_id=game_tasks[i], user_id=users[i], scope_cost=scope_cost)
-            UserTaskRoom.objects.create(task_id=repetitive_tasks[i], user_id=users[i], scope_cost=scope_cost)
-        return Response(status=status.HTTP_200_OK)
-
-    @action(methods=['DELETE'], detail=False, url_path='finish-game')
-    def finish_game(self):
-        self.request.user.room.status = Room.FINISHED
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class MenuViewSet(GenericViewSet, ListModelMixin):
