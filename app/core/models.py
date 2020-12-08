@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth import get_user_model
+from django.db.models import F
 
 
 class CustomUser(AbstractUser):
@@ -27,7 +28,7 @@ class Room(models.Model):
     current_round = models.PositiveSmallIntegerField(default=1)
     max_round = models.PositiveSmallIntegerField(default=3)
     status = models.PositiveSmallIntegerField(default=PENDING, choices=STATUS_TYPE)
-    tasks = models.ManyToManyField('core.Task', related_name='rooms', through='UserTaskRoom')
+    tasks = models.ManyToManyField('core.Task', related_name='rooms', through='core.UserTaskRoom')
     objects = models.Manager()
 
     class Meta:
@@ -43,6 +44,19 @@ class Player(models.Model):
     room = models.ForeignKey('core.Room', on_delete=models.CASCADE, related_name='players')
     host = models.BooleanField(default=False)
     score = models.PositiveSmallIntegerField(default=0)
+    objects = models.Manager()
+
+    class Meta:
+        verbose_name = "Player"
+        verbose_name_plural = "Players"
+
+    def __str__(self):
+        return f'{self.user.username} on room "{self.room.name}"'
+
+    @property
+    def room_open_tasks(self):
+        return list(self.userroomtasks.filter(status=UserTaskRoom.PENDING).values(questionId=F('task__id'),
+                                                                                  text=F('task__title')))
 
 
 class Tag(models.Model):
