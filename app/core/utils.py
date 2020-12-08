@@ -39,3 +39,7 @@ def answer_accepted_event(user_id, username):
 
 def vote_event(tasks):
     return event_wrapper('voteList', tasks=tasks)
+
+
+def winner_event(username):
+    return event_wrapper('winner', username=username)

@@ -97,7 +97,7 @@ class UserTaskRoom(models.Model):
     room = models.ForeignKey('core.Room', on_delete=models.CASCADE, related_name='userroomtasks')
     player = models.ForeignKey('core.Player', on_delete=models.CASCADE, related_name='userroomtasks')
     answer = models.CharField(max_length=500, blank=True)
-    likes = models.ManyToManyField(get_user_model(), related_name='liked_answers')
+    likes = models.ManyToManyField('core.Player', related_name='liked_answers')
     status = models.PositiveSmallIntegerField(default=PENDING)
     scope_cost = models.PositiveSmallIntegerField()
     objects = models.Manager()

@@ -62,10 +62,10 @@ class PlayerViewSet(GenericViewSet):
     def connect_game(self, request, *args, **kwargs):
         room = get_object_or_404(Room, name=request.data['name'])
         if room.status != Room.PENDING:
-            return Response(data='The game started yet', status=status.HTTP_400_BAD_REQUEST)
+            return Response(data='The game alreadt started', status=status.HTTP_400_BAD_REQUEST)
         user = request.user
         user.room = room
-        user.save()
+        Player.objects.create(user=user, room=room)
         return Response(status=status.HTTP_201_CREATED)
 
 
