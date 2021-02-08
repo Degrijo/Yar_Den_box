@@ -9,9 +9,6 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from app.core.drf_views import AuthorizationViewSet, PlayerViewSet, HostViewSet, MenuViewSet
 from app.core.django_views import statistic, home, algorithm, links, realization
-from app.core.swagger_views import get_swagger_view
-
-schema_view = get_swagger_view(title='Yar Den Box API')
 
 
 urlpatterns = [

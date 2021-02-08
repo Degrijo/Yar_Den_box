@@ -43,3 +43,20 @@ def vote_event(tasks):
 
 def winner_event(username):
     return event_wrapper('winner', username=username)
+
+
+def timeout_event():
+    return event_wrapper('timeout')
+
+
+def group_by(items, group_name, *args):
+    result = {}
+    for item in items:
+        keys = ([item.pop(key) for key in args])
+        result.setdefault(tuple(keys), []).append(item)
+    grouped = []
+    for key, value in result.items():
+        data = dict(zip(args, key))
+        data.setdefault(group_name, value)
+        grouped.append(data)
+    return grouped

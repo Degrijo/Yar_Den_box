@@ -7,9 +7,9 @@ from django.db.models import F, Count, Q
 from rest_framework_simplejwt import authentication
 
 from app.core.models import Room, UserTaskRoom, Task, Player
-from app.core.utils import vote_event, greeting_event, error_event, start_event, is_alive_event, define_event, \
-    answer_accepted_event, connection_event, winner_event
-
+from app.core.utils import vote_event, greeting_event, error_event, start_event, define_event, group_by, winner_event,\
+    answer_accepted_event, connection_event
+# for speed can store ids, not orm obj
 
 QUESTION_NUMBER_IN_ROUND = 2
 MIN_PLAYER_NUMBER = 2
@@ -52,7 +52,7 @@ class RoomConsumer(WebsocketConsumer):
                 if player_count < MIN_PLAYER_NUMBER:
                     self.send(error_event('Amount of users smaller than ' + str(MIN_PLAYER_NUMBER)))
                     return
-                all_tasks = Task.objects.exclude(rooms__id=self.room.id)  # all()
+                all_tasks = Task.objects.exclude(rooms__id=self.room.id)
                 if all_tasks.count() < player_count:
                     self.send({'event_type': 'error',
                                'message': 'Task counter should be bigger or equal than user counter'})
@@ -60,8 +60,8 @@ class RoomConsumer(WebsocketConsumer):
                 self.room.status = Room.WORKING
                 self.room.save(update_fields=('status',))
                 if self.room.players.annotate(task_count=Count('userroomtasks',
-                                                          filter=Q(userroomtasks__status=UserTaskRoom.PENDING)))\
-                               .filter(task_count__lt=QUESTION_NUMBER_IN_ROUND):  # check with completed usertaskrooms
+                                              filter=Q(userroomtasks__status=UserTaskRoom.PENDING)))\
+                                    .filter(task_count__lt=QUESTION_NUMBER_IN_ROUND):  # check with completed usertaskrooms
                     game_tasks = sample(list(all_tasks.values_list('id', flat=True)), k=player_count)
                     repetitive_tasks = game_tasks.copy()
                     repetitive_tasks.append(repetitive_tasks.pop(0))
@@ -77,14 +77,15 @@ class RoomConsumer(WebsocketConsumer):
                                                     player_id=players[i],
                                                     room=self.room,
                                                     scope_cost=scope_cost)
-                tasks = []
-                for player in self.room.players.all():  # update with sql
-                    tasks.append({'userId': player.id,
-                                  'username': player.user.username,
-                                  'questions': player.room_open_tasks})
+                tasks = UserTaskRoom.objects.filter(room=self.room, status=UserTaskRoom.PENDING) \
+                                            .select_related('player', 'player__user', 'task') \
+                                            .values(userId=F('player_id'),
+                                                    username=F('player__user__username'),
+                                                    questionId=F('task_id'),
+                                                    text=F('task__title'))
                 async_to_sync(self.channel_layer.group_send)(self.room_group_name, {
                     'type': 'group_message',
-                    'data': start_event(tasks)
+                    'data': start_event(group_by(tasks, 'questions', 'userId', 'username'))
                 })
             elif event_type == 'answer':
                 for answer in data.get('answer', []):  # update with sql
@@ -97,23 +98,16 @@ class RoomConsumer(WebsocketConsumer):
                     'data': answer_accepted_event(self.player.id, self.user.username)
                 })
                 if not self.room.userroomtasks.filter(status=UserTaskRoom.PENDING):
-                    tasks = self.room.userroomtasks.filter(status=UserTaskRoom.COMPLETED)
-                    answers = {}  # optimize with sql or with select related
-                    for task in tasks:
-                        answer = answers.get(task.task.id)
-                        if answer:
-                            answer['answers'].append({'userId': task.player_id,
-                                                      'username': task.player.user.username,
-                                                      'answer': task.answer})
-                        else:
-                            answers[task.task.id] = {'questionId': task.task.id,
-                                                     'question': task.task.title,
-                                                     'answers': [{'userId': task.player_id,
-                                                                  'username': task.player.user.username,
-                                                                  'answer': task.answer}]}
+                    tasks = UserTaskRoom.objects.filter(room=self.room, status=UserTaskRoom.COMPLETED) \
+                                                .select_related('task', 'player', 'player__user') \
+                                                .values('answer',
+                                                        questionId=F('task_id'),
+                                                        question=F('task__title'),
+                                                        userID=F('player_id'),
+                                                        username=F('player__user__username'))
                     async_to_sync(self.channel_layer.group_send)(self.room_group_name, {
                         'type': 'group_message',
-                        'data': vote_event(list(answers.values()))
+                        'data': vote_event(group_by(tasks, 'answers', 'questionId', 'question'))
                     })
             elif event_type == 'voteList':
                 for vote in data.get('votes', []):

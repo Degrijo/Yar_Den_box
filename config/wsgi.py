@@ -11,11 +11,9 @@ import os
 
 from django.core.wsgi import get_wsgi_application
 from channels.layers import get_channel_layer
-from whitenoise import WhiteNoise
 
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.common')
 
 application = get_wsgi_application()
 channel_layer = get_channel_layer()
-application = WhiteNoise(application, root='/static/')
