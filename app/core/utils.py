@@ -1,12 +1,19 @@
 from datetime import datetime
-from json import dumps
+from random import sample
+from string import ascii_uppercase, digits
+
+from app.core.constants import PASSWORD_CHARS_NUMBER
+
+
+def generate_password():
+    return ''.join(sample(ascii_uppercase + digits, PASSWORD_CHARS_NUMBER))
 
 
 def event_wrapper(event_type, **kwargs):
     data = {'eventType': event_type, 'timestamp': datetime.now().timestamp()}
     data.update(kwargs)
     print(data)
-    return dumps(data)
+    return data
 
 
 def connection_event():
@@ -47,6 +54,14 @@ def winner_event(username):
 
 def timeout_event():
     return event_wrapper('timeout')
+
+
+def reconnect_event(event):
+    return event_wrapper('reconnect', inner=event)
+
+
+def score_event(scores):
+    return event_wrapper('score', scores=scores)
 
 
 def group_by(items, group_name, *args):

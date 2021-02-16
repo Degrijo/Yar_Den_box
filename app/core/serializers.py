@@ -1,57 +1,160 @@
 from django.contrib.auth import get_user_model
-
+from django.db.models import Q
+from django.shortcuts import get_object_or_404
 from rest_framework import serializers
+from rest_framework_simplejwt.tokens import RefreshToken
 
-from app.core.models import Room
+from app.core.constants import MAX_PLAYER_COUNT
+from app.core.models import Room, Player
 
 
 class SigUpSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField()
+    password_repeat = serializers.CharField()
 
     class Meta:
         model = get_user_model()
-        fields = ('username', 'email', 'password')
+        fields = ('username', 'email', 'male', 'password', 'password_repeat')
+
+    def validate(self, attrs):
+        if attrs.get('password') != attrs.get('password_repeat'):
+            raise serializers.ValidationError({'password_repeat': ["Passwords aren't common"]})
+        return attrs
+
+    def create(self, validated_data):
+        user = self.Meta.model(email=validated_data.get('email'),
+                               username=validated_data.get('username'),
+                               male=validated_data.get('male'))
+        password = validated_data.get('password')
+        if password is not None:
+            user.set_password(password)
+        user.save()
+        return user
+
+    def to_representation(self, instance):
+        refresh = RefreshToken.for_user(instance)
+        return {'refresh': str(refresh), 'access': str(refresh.access_token)}
 
 
-class LogInSerializer(serializers.Serializer):
-    username = serializers.CharField(max_length=150)
-    password = serializers.CharField(max_length=128)
+class LogInSerializer(serializers.ModelSerializer):
+    username_or_email = serializers.CharField()
 
     class Meta:
-        fields = ('username', 'password')
+        model = get_user_model()
+        fields = ('username_or_email', 'password')
+
+    def validate(self, attrs):
+        value = attrs.get('username_or_email')
+        users = get_user_model().objects.filter(Q(username=value) | Q(email=value)).distinct()
+        if users.count() != 1:
+            raise serializers.ValidationError({'username_or_email': ['No such user']})
+        if not users.first().check_password(attrs.get('password')):
+            raise serializers.ValidationError({'password': ['Wrong password']})
+        return attrs
+
+    def create(self, validated_data):
+        value = validated_data.get('username_or_email')
+        return get_user_model().objects.filter(Q(username=value) | Q(email=value)).distinct().first()  # optimize it
+
+    def to_representation(self, instance):
+        refresh = RefreshToken.for_user(instance)
+        return {'refresh': str(refresh), 'access': str(refresh.access_token)}
 
 
 class CreateGameSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(allow_blank=True)
 
     class Meta:
         model = Room
-        fields = ('name', 'max_round')
+        fields = ('username', 'name', 'max_round', 'private')
+
+    def create(self, validated_data):
+        username = validated_data.pop('username')
+        room = Room.objects.create(**validated_data)
+        user = self.context.get('request').user
+        if not username:
+            username = user.username
+        Player.objects.create(user=user,
+                              username=username,
+                              room=room,
+                              host=True,
+                              color=room.random_player_color)
+        return room
+
+    def to_representation(self, instance):
+        player = Player.objects.get(user=self.context.get('request').user, room=instance)
+        data = {'username': player.username, 'color': str(player.color),
+                'name': instance.name}
+        if instance.private:
+            data['password'] = instance.password
+        return data
 
 
 class ConnectGameSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(required=False)
+    name = serializers.CharField()
 
     class Meta:
         model = Room
-        fields = ('name',)
+        fields = ('username', 'name', 'password')
+
+    def validate(self, attrs):
+        if not Room.objects.filter(name=attrs.get('name')).exists():
+            raise serializers.ValidationError({'name': ['No room with such name']})
+        room = Room.objects.get(name=attrs.get('name'))
+        if room.private and not room.check_password(attrs.get('password')):
+            raise serializers.ValidationError({'password': ['Incorrect password']})
+        if not room.is_has_user(self.context.get('request').user) and room.status != Room.PENDING:
+            raise serializers.ValidationError('The game already started')
+        return attrs
+
+    def create(self, validated_data):
+        user = self.context.get('request').user
+        room = Room.objects.get(name=validated_data.get('name'))
+        if Player.objects.get(user=user, room=room):
+            return room
+        username = validated_data.get('username')
+        if not username:
+            username = user.username
+        Player.objects.create(user=user, username=username, room=room)
+        return room
+
+    def to_representation(self, instance):
+        player = Player.objects.get(user=self.context.get('request').user, room=instance)
+        return {'username': player.username, 'color': str(player.color), 'name': instance.name}
 
 
 class ListRoomSerializer(serializers.ModelSerializer):
-    capacity = serializers.IntegerField(min_value=0)
-    status = serializers.SerializerMethodField()
+    max_player_count = serializers.ReadOnlyField(default=MAX_PLAYER_COUNT)
 
     class Meta:
         model = Room
-        fields = ('name', 'capacity', 'current_round', 'max_round', 'status')
+        fields = ('name', 'player_count', 'max_player_count', 'current_round', 'max_round', 'status', 'private')
 
     def get_status(self, obj):
-        return dict(obj.STATUS_TYPE).get(obj.status)
+        return dict(Room.STATUS_TYPE).get(obj.status)
 
 
-class UserSerializer(serializers.ModelSerializer):
-    role = serializers.SerializerMethodField()
+class PasswordResetSerializer(serializers.Serializer):
+    password = serializers.CharField()
+    password_repeat = serializers.CharField()
 
+    def validate(self, attrs):
+        if attrs.get('password') != attrs.get('password_repeat'):
+            raise serializers.ValidationError("Passwords doesn't match")
+        return attrs
+
+    def create(self, validated_data):
+        user = validated_data.get('user')
+        user.set_password(validated_data.get('password'))
+        user.save()
+        return {}
+
+    def to_representation(self, instance):
+        return {'status': 'Ok'}
+
+
+class MeSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_user_model()
-        fields = ('username', 'email', 'score', 'role')
-
-    def get_role(self, obj):
-        return dict(obj.ROLE_TYPES).get(obj.role)
+        fields = ('id', 'username')

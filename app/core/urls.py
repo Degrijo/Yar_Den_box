@@ -7,7 +7,7 @@ from rest_framework import routers
 
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from app.core.drf_views import AuthorizationViewSet, PlayerViewSet, HostViewSet, MenuViewSet
+from app.core.drf_views import AuthorizationViewSet, PlayerViewSet, RoomViewSet
 from app.core.django_views import statistic, home, algorithm, links, realization
 
 
@@ -24,7 +24,6 @@ urlpatterns = [
 
 router = routers.SimpleRouter()
 router.register(r'auth', AuthorizationViewSet, basename='auth')
-router.register(r'host', HostViewSet, basename='host')
 router.register(r'player', PlayerViewSet, basename='player')
-router.register(r'menu', MenuViewSet, basename='menu')
+router.register(r'room', RoomViewSet, basename='room')
 urlpatterns += router.urls
