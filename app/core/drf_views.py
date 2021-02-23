@@ -2,15 +2,15 @@ from django.contrib.auth import get_user_model
 from django.db.models import Count
 from rest_framework import serializers
 from rest_framework.viewsets import GenericViewSet
-from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin
+from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 
 from app.core.models import Room
-from app.core.serializers import SigUpSerializer, LogInSerializer, ConnectGameSerializer, ListRoomSerializer, \
-    CreateGameSerializer, MeSerializer
+from app.core.serializers import SigUpSerializer, LogInSerializer, ConnectRoomSerializer, RoomSerializer, \
+    CreateRoomSerializer, MeSerializer
 
 
 class AuthorizationViewSet(GenericViewSet):
@@ -26,6 +26,9 @@ class AuthorizationViewSet(GenericViewSet):
 
     @action(methods=['POST'], detail=False, url_path='')
     def signup(self, request, *args, **kwargs):
+        """
+        Signup
+        """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -33,6 +36,9 @@ class AuthorizationViewSet(GenericViewSet):
 
     @action(methods=['POST'], detail=False, url_path='')
     def login(self, request, *args, **kwargs):
+        """
+        Login
+        """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -50,6 +56,9 @@ class PlayerViewSet(GenericViewSet, RetrieveModelMixin):
 
     @action(methods=['GET'], detail=False, url_path='me')
     def me(self, request, *args, **kwargs):
+        """
+        Get current user inf
+        """
         serializer = self.get_serializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -65,15 +74,18 @@ class RoomViewSet(GenericViewSet, ListModelMixin, CreateModelMixin, RetrieveMode
 
     def get_serializer_class(self):
         if self.action in ('list', 'retrieve'):
-            return ListRoomSerializer
+            return RoomSerializer
         if self.action == 'create':
-            return CreateGameSerializer
+            return CreateRoomSerializer
         if self.action == 'connect':
-            return ConnectGameSerializer
+            return ConnectRoomSerializer
         return serializers.Serializer
 
     @action(methods=['POST'], detail=False, url_path='connect')
     def connect(self, request, *args, **kwargs):
+        """
+        Connecting user to game room
+        """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()

@@ -1,16 +1,18 @@
 from datetime import datetime
 
+from django.core.mail import send_mail
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth import get_user_model
 from django.db.models.manager import Manager
 from django.db.models import F, Q, Count
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
 
-from app.core.constants import PASSWORD_CHARS_NUMBER, DEFAULT_MAX_ROUND
+from app.core.constants import PASSWORD_CHARS_NUMBER, DEFAULT_MAX_ROUND, QUESTION_NUMBER_IN_ROUND
 from app.core.utils import generate_password
-
-
-QUESTION_NUMBER_IN_ROUND = 2
+from app.core.validators import CustomUsernameValidator
+from config.settings.common import EMAIL_HOST_USER
 
 
 class RoomQuerySet(models.query.QuerySet):
@@ -84,17 +86,30 @@ class CustomUser(AbstractUser):
     rooms = models.ManyToManyField('core.Room', related_name='users', through='core.Player')
     email = models.EmailField(unique=True,
                               error_messages={
-                                    'unique': "A user with that username already exists."
+                                    'unique': 'A user with that username already exists.'
                                 }
                               )
-    male = models.BooleanField()
+    username = models.CharField(
+        max_length=150,
+        unique=True,
+        validators=(CustomUsernameValidator,),
+        error_messages={
+            'unique': 'A user with that username already exists.'
+        },
+    )
 
     class Meta:
-        verbose_name = "User"
-        verbose_name_plural = "Users"
+        verbose_name = 'User'
+        verbose_name_plural = 'Users'
 
     def __str__(self):
         return self.username
+
+    def send_activation_email(self):
+        subject = 'Subject'
+        html_message = render_to_string('confirmation_email.html', { 'context': 'values'})
+        plain_message = strip_tags(html_message)
+        send_mail(subject, plain_message, EMAIL_HOST_USER, (self.email,), False, html_message=html_message)
 
 
 class Pack(models.Model):
@@ -102,8 +117,8 @@ class Pack(models.Model):
     objects = models.Manager()
 
     class Meta:
-        verbose_name = "Pack"
-        verbose_name_plural = "Packs"
+        verbose_name = 'Pack'
+        verbose_name_plural = 'Packs'
 
     def __str__(self):
         return self.title
@@ -115,8 +130,8 @@ class Task(models.Model):
     objects = models.Manager()
 
     class Meta:
-        verbose_name = "Task"
-        verbose_name_plural = "Tasks"
+        verbose_name = 'Task'
+        verbose_name_plural = 'Tasks'
 
     def __str__(self):
         return self.title
@@ -140,8 +155,8 @@ class ArchivedRoom(models.Model):
     objects = models.Manager()
 
     class Meta:
-        verbose_name = "Archived room"
-        verbose_name_plural = "Archived rooms"
+        verbose_name = 'Archived room'
+        verbose_name_plural = 'Archived rooms'
 
 
 class Room(models.Model):
@@ -161,15 +176,15 @@ class Room(models.Model):
     current_round = models.PositiveSmallIntegerField(default=1)
     max_round = models.PositiveSmallIntegerField(default=DEFAULT_MAX_ROUND)
     status = models.PositiveSmallIntegerField(default=PENDING, choices=STATUS_TYPE)
-    private = models.BooleanField(default=False)
+    private = models.BooleanField(default=True)
     password = models.CharField(max_length=PASSWORD_CHARS_NUMBER, default=generate_password, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     start_work_at = models.DateTimeField(blank=True, null=True)
     objects = RoomManager()
 
     class Meta:
-        verbose_name = "Room"
-        verbose_name_plural = "Rooms"
+        verbose_name = 'Room'
+        verbose_name_plural = 'Rooms'
 
     def __str__(self):
         return self.name
@@ -182,6 +197,10 @@ class Room(models.Model):
     def archived_data(self):
         return {'name': self.name, 'current_round': self.current_round, 'max_round': self.max_round,
                 'private': self.private, 'created_at': self.created_at, 'start_work_at': self.start_work_at}
+
+    @property
+    def empty(self):
+        return self.players.filter(active=True).exists()
 
     def is_has_user(self, user):
         return self.players.filter(user=user).exists()
@@ -205,8 +224,8 @@ class ArchivedPlayer(models.Model):
     objects = models.Manager()
 
     class Meta:
-        verbose_name = "Archived player"
-        verbose_name_plural = "Archived players"
+        verbose_name = 'Archived player'
+        verbose_name_plural = 'Archived players'
 
 
 class Player(models.Model):
@@ -221,8 +240,8 @@ class Player(models.Model):
     objects = PlayerManager()
 
     class Meta:
-        verbose_name = "Player"
-        verbose_name_plural = "Players"
+        verbose_name = 'Player'
+        verbose_name_plural = 'Players'
         unique_together = ('username', 'room')
 
     def __str__(self):
@@ -246,8 +265,8 @@ class ArchivedPlayerTask(models.Model):
     objects = models.Manager()
 
     class Meta:
-        verbose_name = "Archived own task"
-        verbose_name_plural = "Archived own tasks"
+        verbose_name = 'Archived own task'
+        verbose_name_plural = 'Archived own tasks'
 
 
 class PlayerTask(models.Model):
@@ -271,8 +290,8 @@ class PlayerTask(models.Model):
     objects = PlayerTaskManager()
 
     class Meta:
-        verbose_name = "Own task"
-        verbose_name_plural = "Own tasks"
+        verbose_name = 'Own task'
+        verbose_name_plural = 'Own tasks'
 
     @property
     def archived_data(self):

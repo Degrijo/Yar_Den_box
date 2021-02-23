@@ -20,8 +20,8 @@ def connection_event():
     return event_wrapper('connection', message='connection ok')
 
 
-def greeting_event(users):
-    return event_wrapper('greeting', users=users)
+def greeting_event(name, password, users):
+    return event_wrapper('greeting', name=name, password=password, users=users)
 
 
 def start_event(tasks):
@@ -62,6 +62,14 @@ def reconnect_event(event):
 
 def score_event(scores):
     return event_wrapper('score', scores=scores)
+
+
+def pause_event():
+    return event_wrapper('pause')
+
+
+def resume_event():
+    return event_wrapper('resume')
 
 
 def group_by(items, group_name, *args):
