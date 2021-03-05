@@ -22,9 +22,11 @@ class AuthorizationViewSet(GenericViewSet):
             return SigUpSerializer
         if self.action == 'login':
             return LogInSerializer
+        if self.action == 'confirm_email':
+            return
         return serializers.Serializer
 
-    @action(methods=['POST'], detail=False, url_path='')
+    @action(methods=['POST'], detail=False)
     def signup(self, request, *args, **kwargs):
         """
         Signup
@@ -34,10 +36,20 @@ class AuthorizationViewSet(GenericViewSet):
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    @action(methods=['POST'], detail=False, url_path='')
+    @action(methods=['POST'], detail=False)
     def login(self, request, *args, **kwargs):
         """
         Login
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(methods=['POST'], detail=True)
+    def confirm_email(self, request, *args, **kwargs):
+        """
+        Confirm Email
         """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -54,17 +66,17 @@ class PlayerViewSet(GenericViewSet, RetrieveModelMixin):
             return MeSerializer
         return serializers.Serializer
 
-    @action(methods=['GET'], detail=False, url_path='me')
+    @action(methods=['GET'], detail=False)
     def me(self, request, *args, **kwargs):
         """
-        Get current user inf
+        Current user inf
         """
         serializer = self.get_serializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class RoomViewSet(GenericViewSet, ListModelMixin, CreateModelMixin, RetrieveModelMixin):
-    queryset = Room.objects.all()
+    queryset = Room.objects.exclude(status=Room.FINISHED)
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
@@ -81,7 +93,7 @@ class RoomViewSet(GenericViewSet, ListModelMixin, CreateModelMixin, RetrieveMode
             return ConnectRoomSerializer
         return serializers.Serializer
 
-    @action(methods=['POST'], detail=False, url_path='connect')
+    @action(methods=['POST'], detail=False)
     def connect(self, request, *args, **kwargs):
         """
         Connecting user to game room

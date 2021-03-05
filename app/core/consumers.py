@@ -1,4 +1,3 @@
-from asyncio import sleep
 from random import sample, shuffle
 
 from asgiref.sync import async_to_sync
@@ -6,10 +5,12 @@ from channels.generic.websocket import JsonWebsocketConsumer
 from django.db.models import Count
 from rest_framework_simplejwt import authentication
 
+from app.config.celery import app
 from app.core.constants import MIN_PLAYER_NUMBER, SCOPE_ORDER
 from app.core.models import Room, PlayerTask, Task, Player
 from app.core.utils import vote_event, greeting_event, error_event, start_event, define_event, group_by, winner_event, \
     answer_accepted_event, connection_event, score_event, pause_event, resume_event
+
 
 # for speed can store ids, not orm obj
 
@@ -34,8 +35,16 @@ class RoomConsumer(JsonWebsocketConsumer):
         self.send_json(event.get('data'))
 
     async def send_delayed_message(self, event):
-        await sleep(60)
-        await self.send_json(event.get('data'))
+        data = event.get("data")
+        message = data.get("message")
+        room_id = self.room_group_name
+        delay = data.get("delay")
+        if delay:
+            task = await send_delayed_message.apply_async(args=[room_id, message], countdown=delay)
+            return task
+
+    def end_celery_message(task_id):
+        app.control.revoke(task_id, terminate=True)
 
     def receive_json(self, data, **kwargs):
         try:

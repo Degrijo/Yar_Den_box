@@ -5,7 +5,7 @@ from rest_framework import routers
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework.schemas import get_schema_view
 
-from app.core.drf_views import AuthorizationViewSet, PlayerViewSet, RoomViewSet
+from app.core.views import AuthorizationViewSet, PlayerViewSet, RoomViewSet
 
 
 urlpatterns = [

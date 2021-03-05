@@ -1,10 +1,10 @@
 from django.contrib.auth import get_user_model
-from django.db.models import Q
 from rest_framework import serializers
-from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.core.constants import MAX_PLAYER_COUNT
 from app.core.models import Room, Player
+
+# check email case sensitive
 
 
 class SigUpSerializer(serializers.ModelSerializer):
@@ -12,19 +12,21 @@ class SigUpSerializer(serializers.ModelSerializer):
         model = get_user_model()
         fields = ('username', 'email', 'password')
 
+    def validate_username(self, value):
+        if self.Meta.model.objects.list_actual_users().filter(username=value).exists():
+            raise serializers.ValidationError('A user with that username already exists.')
+        return value
+
+    def validate_email(self, value):
+        if self.Meta.model.objects.list_actual_users().filter(email=value).exists():
+            raise serializers.ValidationError('A user with that email already exists.')
+        return value
+
     def create(self, validated_data):
-        user = self.Meta.model(email=validated_data.get('email'),
-                               username=validated_data.get('username'))
-        password = validated_data.get('password')
-        if password is not None:
-            user.set_password(password)
-        user.save()
-        # user.email_user()
-        return user
+        return self.Meta.model.objects.create_user(**validated_data)
 
     def to_representation(self, instance):
-        refresh = RefreshToken.for_user(instance)
-        return {'refresh': str(refresh), 'access': str(refresh.access_token)}
+        return {}
 
 
 class LogInSerializer(serializers.ModelSerializer):
@@ -35,21 +37,37 @@ class LogInSerializer(serializers.ModelSerializer):
         fields = ('username_or_email', 'password')
 
     def validate(self, attrs):
-        value = attrs.get('username_or_email')
-        users = get_user_model().objects.filter(Q(username=value) | Q(email=value)).distinct()
+        users = self.Meta.model.objects.get_user(attrs.get('username_or_email'))
         if users.count() != 1:
             raise serializers.ValidationError({'username_or_email': ['No such user']})
-        if not users.first().check_password(attrs.get('password')):
+        user = users.first()
+        if not user.check_password(attrs.get('password')):
             raise serializers.ValidationError({'password': ['Wrong password']})
+        if not user.is_confirmed:
+            raise serializers.ValidationError("User isn't confirmed")
         return attrs
 
     def create(self, validated_data):
-        value = validated_data.get('username_or_email')
-        return get_user_model().objects.filter(Q(username=value) | Q(email=value)).distinct().first()  # optimize it
+        return self.Meta.model.objects.get_user(validated_data.get('username_or_email')).first()
 
     def to_representation(self, instance):
-        refresh = RefreshToken.for_user(instance)
-        return {'refresh': str(refresh), 'access': str(refresh.access_token)}
+        return instance.tokens_pair
+
+
+# class ConfirmEmailSerializer(serializers.Serializer):
+#     confirm_token = serializers.CharField()
+#
+#     def validate(self, attrs):
+#
+#
+#     def create(self, validated_data):
+#         user =
+#         user.is_confirmed = True
+#         user.save(update_fields=('is_confirmed',))
+#         return user
+#
+#     def to_representation(self, instance):
+#         return instance.tokens_pair
 
 
 class CreateRoomSerializer(serializers.ModelSerializer):
@@ -59,9 +77,14 @@ class CreateRoomSerializer(serializers.ModelSerializer):
         model = Room
         fields = ('username', 'name', 'max_round')
 
+    def validate_name(self, value):
+        if self.Meta.model.objects.list_actual_rooms().filter(name=value).exists():
+            raise serializers.ValidationError('A room with that name already exists.')
+        return value
+
     def create(self, validated_data):
         username = validated_data.pop('username')
-        room = Room.objects.create(**validated_data)
+        room = self.Meta.model.objects.create(**validated_data)
         user = self.context.get('request').user
         if not username:
             username = user.username
@@ -84,9 +107,12 @@ class ConnectRoomSerializer(serializers.ModelSerializer):
         model = Room
         fields = ('username', 'name', 'password')
 
+    def validate_name(self, value):
+        if not self.Meta.model.objects.filter(name=value).exists():
+            raise serializers.ValidationError('No room with such name')
+        return value
+
     def validate(self, attrs):
-        if not Room.objects.filter(name=attrs.get('name')).exists():
-            raise serializers.ValidationError({'name': ['No room with such name']})
         room = Room.objects.get(name=attrs.get('name'))
         if room.private and not room.check_password(attrs.get('password')):
             raise serializers.ValidationError({'password': ['Incorrect password']})
@@ -120,23 +146,17 @@ class RoomSerializer(serializers.ModelSerializer):
         return dict(Room.STATUS_TYPE).get(obj.status)
 
 
-class PasswordResetSerializer(serializers.Serializer):
-    password = serializers.CharField()
-    password_repeat = serializers.CharField()
-
-    def validate(self, attrs):
-        if attrs.get('password') != attrs.get('password_repeat'):
-            raise serializers.ValidationError("Passwords doesn't match")
-        return attrs
-
-    def create(self, validated_data):
-        user = validated_data.get('user')
-        user.set_password(validated_data.get('password'))
-        user.save()
-        return {}
+# class PasswordResetSerializer(serializers.Serializer):
+#     password = serializers.CharField()
+#
+#     def create(self, validated_data):
+#         user = validated_data.get('user')
+#         user.set_password(validated_data.get('password'))
+#         user.save(update_fields=('password',))
+#         return {}
 
     def to_representation(self, instance):
-        return {'status': 'Ok'}
+        return {}
 
 
 class MeSerializer(serializers.ModelSerializer):

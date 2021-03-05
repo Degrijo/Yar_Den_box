@@ -1,29 +1,45 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from django.core.mail import send_mail
+from django.contrib.auth.base_user import BaseUserManager
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth import get_user_model
 from django.db.models.manager import Manager
 from django.db.models import F, Q, Count
-from django.template.loader import render_to_string
-from django.utils.html import strip_tags
+from rest_framework_simplejwt.tokens import RefreshToken, Token
 
 from app.core.constants import PASSWORD_CHARS_NUMBER, DEFAULT_MAX_ROUND, QUESTION_NUMBER_IN_ROUND
 from app.core.utils import generate_password
 from app.core.validators import CustomUsernameValidator
-from config.settings.common import EMAIL_HOST_USER
+from app.core.tasks import send_user_confirmation_email
 
 
-class RoomQuerySet(models.query.QuerySet):
-    def delete(self):
-        for room in self:
-            archived_room = ArchivedRoom.objects.create(**room.archived_data)
-            for player in room.players.all():
-                ArchivedPlayer.objects.create(**player.archived_data, room=archived_room)
-                for player_task in player.playertasks.all():
-                    ArchivedPlayerTask.objects.create(**player_task.archived_data, player=player)
-        return super().delete()
+class UserManager(BaseUserManager):
+    def create_user(self, username, email, password):
+        user = self.model(username=username, email=self.normalize_email(email))
+        user.set_password(password)
+        user.save()
+        send_user_confirmation_email(user.id)
+        return user
+
+    def create_superuser(self, username, email, password):
+        user = self.create_user(username, email, password)
+        user.is_superuser = True
+        user.is_staff = True
+        user.is_confirmed = True
+        user.save()
+        return user
+
+    def get_user(self, username_or_email):
+        return self.filter(active=True).filter(Q(username=username_or_email) | Q(email=username_or_email)).distinct()
+
+    def list_actual_users(self):
+        return self.exclude(active=True)
+
+
+class RoomManager(Manager):
+    def list_actual_rooms(self):
+        return self.exclude(status=Room.FINISHED)
 
 
 class PlayerManager(Manager):
@@ -74,29 +90,20 @@ class PlayerTaskManager(Manager):
         return not self.filter(player__room=room, status=PlayerTask.PENDING)
 
     def is_vote_ends(self, room):  # need update
-        return self.filter(room=room, status=PlayerTask.COMPLETED).aggregate(likes_count=Count('likes'), filter=Q())[
-            'likes_count'] == room.players.filter(active=True).count() * QUESTION_NUMBER_IN_ROUND
-
-
-class RoomManager(Manager):
-    _queryset_class = RoomQuerySet
+        return self.filter(room=room, status=PlayerTask.COMPLETED)\
+                   .aggregate(likes_count=Count('likes'),
+                              filter=Q())\
+                   ['likes_count'] == room.players.filter(active=True).count() * QUESTION_NUMBER_IN_ROUND
 
 
 class CustomUser(AbstractUser):
     rooms = models.ManyToManyField('core.Room', related_name='users', through='core.Player')
-    email = models.EmailField(unique=True,
-                              error_messages={
-                                    'unique': 'A user with that username already exists.'
-                                }
-                              )
-    username = models.CharField(
-        max_length=150,
-        unique=True,
-        validators=(CustomUsernameValidator,),
-        error_messages={
-            'unique': 'A user with that username already exists.'
-        },
-    )
+    email = models.EmailField()
+    username = models.CharField(max_length=150, validators=(CustomUsernameValidator,))
+    is_confirmed = models.BooleanField(default=False)
+    last_login = models.DateTimeField()
+
+    objects = UserManager()
 
     class Meta:
         verbose_name = 'User'
@@ -105,11 +112,24 @@ class CustomUser(AbstractUser):
     def __str__(self):
         return self.username
 
-    def send_activation_email(self):
-        subject = 'Subject'
-        html_message = render_to_string('confirmation_email.html', { 'context': 'values'})
-        plain_message = strip_tags(html_message)
-        send_mail(subject, plain_message, EMAIL_HOST_USER, (self.email,), False, html_message=html_message)
+    def login_fill(self):
+        self.last_login = datetime.now()
+        self.save(update_fields=('last_login',))
+
+    @property
+    def tokens_pair(self):
+        refresh = RefreshToken.for_user(self)
+        access = refresh.access_token
+        return {refresh.token_type: refresh, access.token_type: access}
+
+    @property
+    def confirm_token(self):
+        return ConfirmationToken.for_user(self)
+
+
+class ConfirmationToken(Token):
+    token_type = 'confirm'
+    lifetime = timedelta(seconds=0)
 
 
 class Pack(models.Model):
@@ -144,21 +164,6 @@ class Color(models.Model):
         return '#' + self.name
 
 
-class ArchivedRoom(models.Model):
-    name = models.CharField(max_length=150)
-    current_round = models.PositiveSmallIntegerField()
-    max_round = models.PositiveSmallIntegerField()
-    private = models.BooleanField()
-    created_at = models.DateTimeField()
-    start_work_at = models.DateTimeField()
-    finished_at = models.DateTimeField(auto_now_add=True)
-    objects = models.Manager()
-
-    class Meta:
-        verbose_name = 'Archived room'
-        verbose_name_plural = 'Archived rooms'
-
-
 class Room(models.Model):
     PENDING = 0
     WORKING = 1
@@ -172,7 +177,7 @@ class Room(models.Model):
         (VOTING, 'Voting'),
         (FINISHED, 'Finished')
     )
-    name = models.CharField(max_length=150, unique=True)
+    name = models.CharField(max_length=150, validators=(unique_name_with_status_validator,))
     current_round = models.PositiveSmallIntegerField(default=1)
     max_round = models.PositiveSmallIntegerField(default=DEFAULT_MAX_ROUND)
     status = models.PositiveSmallIntegerField(default=PENDING, choices=STATUS_TYPE)
@@ -194,11 +199,6 @@ class Room(models.Model):
         return Color.objects.exclude(players__room=self).order_by('?')[0]
 
     @property
-    def archived_data(self):
-        return {'name': self.name, 'current_round': self.current_round, 'max_round': self.max_round,
-                'private': self.private, 'created_at': self.created_at, 'start_work_at': self.start_work_at}
-
-    @property
     def empty(self):
         return self.players.filter(active=True).exists()
 
@@ -212,20 +212,6 @@ class Room(models.Model):
 
     def check_password(self, password):
         return self.password == password
-
-
-class ArchivedPlayer(models.Model):
-    username = models.CharField(max_length=150)
-    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='archived_players')
-    room = models.ForeignKey('core.ArchivedRoom', on_delete=models.CASCADE, related_name='archived_players')
-    host = models.BooleanField()
-    score = models.PositiveSmallIntegerField()
-    color = models.ForeignKey('core.Color', on_delete=models.CASCADE, related_name='archived_players')
-    objects = models.Manager()
-
-    class Meta:
-        verbose_name = 'Archived player'
-        verbose_name_plural = 'Archived players'
 
 
 class Player(models.Model):
@@ -242,31 +228,9 @@ class Player(models.Model):
     class Meta:
         verbose_name = 'Player'
         verbose_name_plural = 'Players'
-        unique_together = ('username', 'room')
 
     def __str__(self):
         return f'{self.username} on room "{self.room.name}"'
-
-    @property
-    def archived_data(self):
-        return {'username': self.username, 'user': self.user, 'host': self.host, 'score': self.score,
-                'color': self.color}
-
-
-class ArchivedPlayerTask(models.Model):
-    task = models.ForeignKey('core.Task', on_delete=models.CASCADE, related_name='archived_playertasks')
-    player = models.ForeignKey('core.ArchivedPlayer', on_delete=models.CASCADE, related_name='archived_playertasks')
-    answer = models.CharField(max_length=500, blank=True)
-    likes = models.PositiveSmallIntegerField()
-    scope_cost = models.PositiveSmallIntegerField()
-    created_at = models.DateTimeField()
-    answered_at = models.DateTimeField()
-    finished_at = models.DateTimeField()
-    objects = models.Manager()
-
-    class Meta:
-        verbose_name = 'Archived own task'
-        verbose_name_plural = 'Archived own tasks'
 
 
 class PlayerTask(models.Model):
