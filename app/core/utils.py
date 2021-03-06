@@ -1,6 +1,7 @@
-from datetime import datetime
 from random import sample
 from string import ascii_uppercase, digits
+
+from django.utils import timezone
 
 from app.core.constants import PASSWORD_CHARS_NUMBER
 
@@ -10,7 +11,7 @@ def generate_password():
 
 
 def event_wrapper(event_type, **kwargs):
-    data = {'eventType': event_type, 'timestamp': datetime.now().timestamp()}
+    data = {'eventType': event_type, 'timestamp': timezone.now().timestamp()}
     data.update(kwargs)
     print(data)
     return data

@@ -5,9 +5,10 @@ from channels.generic.websocket import JsonWebsocketConsumer
 from django.db.models import Count
 from rest_framework_simplejwt import authentication
 
-from app.config.celery import app
+from config.celery import app
 from app.core.constants import MIN_PLAYER_NUMBER, SCOPE_ORDER
 from app.core.models import Room, PlayerTask, Task, Player
+from app.core.tasks import send_delayed_message
 from app.core.utils import vote_event, greeting_event, error_event, start_event, define_event, group_by, winner_event, \
     answer_accepted_event, connection_event, score_event, pause_event, resume_event
 

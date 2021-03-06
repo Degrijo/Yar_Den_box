@@ -1,9 +1,5 @@
-from django.contrib.auth import get_user_model
 from django.core import validators
 from django.utils.deconstruct import deconstructible
-from rest_framework.exceptions import ValidationError
-
-from app.core.models import Room
 
 
 @deconstructible

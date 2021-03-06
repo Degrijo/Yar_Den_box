@@ -1,21 +1,15 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
+from rest_framework_simplejwt.exceptions import TokenError
 
 from app.core.constants import MAX_PLAYER_COUNT
-from app.core.models import Room, Player
-
-# check email case sensitive
+from app.core.models import Room, Player, CustomToken
 
 
 class SigUpSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_user_model()
         fields = ('username', 'email', 'password')
-
-    def validate_username(self, value):
-        if self.Meta.model.objects.list_actual_users().filter(username=value).exists():
-            raise serializers.ValidationError('A user with that username already exists.')
-        return value
 
     def validate_email(self, value):
         if self.Meta.model.objects.list_actual_users().filter(email=value).exists():
@@ -40,34 +34,106 @@ class LogInSerializer(serializers.ModelSerializer):
         users = self.Meta.model.objects.get_user(attrs.get('username_or_email'))
         if users.count() != 1:
             raise serializers.ValidationError({'username_or_email': ['No such user']})
-        user = users.first()
-        if not user.check_password(attrs.get('password')):
+        self.instance = users.first()
+        if not self.instance.check_password(attrs.get('password')):
             raise serializers.ValidationError({'password': ['Wrong password']})
-        if not user.is_confirmed:
+        if not self.instance.is_confirmed:
             raise serializers.ValidationError("User isn't confirmed")
         return attrs
 
-    def create(self, validated_data):
-        return self.Meta.model.objects.get_user(validated_data.get('username_or_email')).first()
+    def update(self, instance, validated_data):
+        instance.login_fill()
+        return instance
 
     def to_representation(self, instance):
         return instance.tokens_pair
 
 
-# class ConfirmEmailSerializer(serializers.Serializer):
-#     confirm_token = serializers.CharField()
-#
-#     def validate(self, attrs):
-#
-#
-#     def create(self, validated_data):
-#         user =
-#         user.is_confirmed = True
-#         user.save(update_fields=('is_confirmed',))
-#         return user
-#
-#     def to_representation(self, instance):
-#         return instance.tokens_pair
+class ResendConfirmEmailSerializer(serializers.ModelSerializer):
+    username_or_email = serializers.CharField()
+
+    class Meta:
+        model = get_user_model()
+        fields = ('username_or_email', 'password')
+
+    def validate(self, attrs):
+        users = self.Meta.model.objects.get_user(attrs.get('username_or_email'))
+        if users.count() != 1:
+            raise serializers.ValidationError({'username_or_email': ['No such user']})
+        self.instance = users.first()
+        if not self.instance.check_password(attrs.get('password')):
+            raise serializers.ValidationError({'password': ['Wrong password']})
+        if self.instance.is_confirmed:
+            raise serializers.ValidationError("User is confirmed")
+        return attrs
+
+    def update(self, instance, validated_data):
+        instance.send_confirmation()
+        return instance
+
+    def to_representation(self, instance):
+        return {}
+
+
+class ConfirmEmailSerializer(serializers.Serializer):
+    confirm_token = serializers.CharField()
+
+    def validate_confirm_token(self, value):
+        try:
+            token = CustomToken(token=value, verify=False)
+            self.instance = get_user_model().objects.get(id=token.payload.get('user_id'))
+        except (TokenError or get_user_model().DoesNotExist):
+            raise serializers.ValidationError("Token isn't valid")
+        return value
+
+    def update(self, instance, validated_data):
+        instance.is_confirmed = True
+        instance.save(update_fields=('is_confirmed',))
+        return instance
+
+    def to_representation(self, instance):
+        return instance.tokens_pair
+
+
+class SendRestorePasswordSerializer(serializers.Serializer):
+    username_or_email = serializers.CharField()
+
+    def validate_username_or_email(self, value):
+        users = get_user_model().objects.get_user(value)
+        if users.count() != 1:
+            raise serializers.ValidationError('No such user')
+        self.instance = users.first()
+
+    def update(self, instance, validated_data):
+        instance.send_reset_password()
+        return instance
+
+    def to_representation(self, instance):
+        return {}
+
+
+class ResetPasswordSerializer(serializers.ModelSerializer):
+    reset_token = serializers.CharField()
+
+    class Meta:
+        model = get_user_model()
+        fields = ('reset_token', 'password')
+
+    def validate_reset_token(self, value):
+        try:
+            token = CustomToken(token=value, verify=False)
+            self.instance = get_user_model().objects.get(id=token.payload.get('user_id'))
+        except (TokenError or get_user_model().DoesNotExist):
+            raise serializers.ValidationError("Token isn't valid")
+        return value
+
+    def update(self, instance, validated_data):
+        instance.set_password(validated_data.get('password'))
+        instance.save(update_fields=('password',))
+        return instance
+
+    def to_representation(self, instance):
+        return instance.tokens_pair
 
 
 class CreateRoomSerializer(serializers.ModelSerializer):
@@ -107,29 +173,26 @@ class ConnectRoomSerializer(serializers.ModelSerializer):
         model = Room
         fields = ('username', 'name', 'password')
 
-    def validate_name(self, value):
-        if not self.Meta.model.objects.filter(name=value).exists():
-            raise serializers.ValidationError('No room with such name')
-        return value
-
     def validate(self, attrs):
-        room = Room.objects.get(name=attrs.get('name'))
-        if room.private and not room.check_password(attrs.get('password')):
+        try:
+            self.instance = self.Meta.model.objects.get(name=attrs.get('name'))
+        except self.Meta.model.DoesNotExist:
+            raise serializers.ValidationError({'name': 'No room with such name'})
+        if self.instance.private and not self.instance.check_password(attrs.get('password')):
             raise serializers.ValidationError({'password': ['Incorrect password']})
-        if not room.is_has_user(self.context.get('request').user) and room.status != Room.PENDING:
+        if not self.instance.is_has_user(self.context.get('request').user) and self.instance.status != Room.PENDING:
             raise serializers.ValidationError('The game already started')
         return attrs
 
-    def create(self, validated_data):
+    def update(self, instance, validated_data):
         user = self.context.get('request').user
-        room = Room.objects.get(name=validated_data.get('name'))
-        if Player.objects.filter(user=user, room=room).exists():
-            return room
+        if Player.objects.filter(user=user, room=instance).exists():
+            return instance
         username = validated_data.get('username')
         if not username:
             username = user.username
-        Player.objects.create(user=user, username=username, room=room, color=room.random_player_color)
-        return room
+        Player.objects.create(user=user, username=username, room=instance, color=instance.random_player_color)
+        return instance
 
     def to_representation(self, instance):
         return {}
@@ -144,19 +207,6 @@ class RoomSerializer(serializers.ModelSerializer):
 
     def get_status(self, obj):
         return dict(Room.STATUS_TYPE).get(obj.status)
-
-
-# class PasswordResetSerializer(serializers.Serializer):
-#     password = serializers.CharField()
-#
-#     def create(self, validated_data):
-#         user = validated_data.get('user')
-#         user.set_password(validated_data.get('password'))
-#         user.save(update_fields=('password',))
-#         return {}
-
-    def to_representation(self, instance):
-        return {}
 
 
 class MeSerializer(serializers.ModelSerializer):

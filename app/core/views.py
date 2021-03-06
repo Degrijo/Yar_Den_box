@@ -10,7 +10,8 @@ from rest_framework.permissions import IsAuthenticated
 
 from app.core.models import Room
 from app.core.serializers import SigUpSerializer, LogInSerializer, ConnectRoomSerializer, RoomSerializer, \
-    CreateRoomSerializer, MeSerializer
+    CreateRoomSerializer, MeSerializer, ConfirmEmailSerializer, ResendConfirmEmailSerializer, ResetPasswordSerializer, \
+    SendRestorePasswordSerializer
 
 
 class AuthorizationViewSet(GenericViewSet):
@@ -23,7 +24,13 @@ class AuthorizationViewSet(GenericViewSet):
         if self.action == 'login':
             return LogInSerializer
         if self.action == 'confirm_email':
-            return
+            return ConfirmEmailSerializer
+        if self.action == 'resend_confirmation_email':
+            return ResendConfirmEmailSerializer
+        if self.action == 'send_reset_password':
+            return SendRestorePasswordSerializer
+        if self.action == 'reset_password':
+            return ResetPasswordSerializer
         return serializers.Serializer
 
     @action(methods=['POST'], detail=False)
@@ -46,10 +53,40 @@ class AuthorizationViewSet(GenericViewSet):
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @action(methods=['POST'], detail=True)
+    @action(methods=['POST'], detail=False)
     def confirm_email(self, request, *args, **kwargs):
         """
-        Confirm Email
+        Confirm Email by Email
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(methods=['POST'], detail=False)
+    def resend_confirmation_email(self, request, *args, **kwargs):
+        """
+        Resend Confirmation Email
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(methods=['POST'], detail=False)
+    def send_reset_password(self, request, *args, **kwargs):
+        """
+        Send Reset Password Email
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(methods=['POST'], detail=False)
+    def reset_password(self, request, *args, **kwargs):
+        """
+        Reset Password by Email
         """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)

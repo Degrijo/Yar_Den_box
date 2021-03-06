@@ -6,19 +6,23 @@ from django.contrib.auth.models import AbstractUser
 from django.contrib.auth import get_user_model
 from django.db.models.manager import Manager
 from django.db.models import F, Q, Count
+from django.utils import timezone
 from rest_framework_simplejwt.tokens import RefreshToken, Token
 
 from app.core.constants import PASSWORD_CHARS_NUMBER, DEFAULT_MAX_ROUND, QUESTION_NUMBER_IN_ROUND
 from app.core.utils import generate_password
 from app.core.validators import CustomUsernameValidator
-from app.core.tasks import send_user_confirmation_email
+from app.core.tasks import send_user_confirmation_email, send_user_reset_password_email
+
+
+# limit CustomToken by timeout
 
 
 class UserManager(BaseUserManager):
     def create_user(self, username, email, password):
-        user = self.model(username=username, email=self.normalize_email(email))
+        user = self.model(username=username, email=email.lower())
         user.set_password(password)
-        user.save()
+        user.save(update_fields=('password',))
         send_user_confirmation_email(user.id)
         return user
 
@@ -27,14 +31,15 @@ class UserManager(BaseUserManager):
         user.is_superuser = True
         user.is_staff = True
         user.is_confirmed = True
-        user.save()
+        user.save(update_fields=('is_superuser', 'is_staff', 'is_confirmed'))
         return user
 
     def get_user(self, username_or_email):
-        return self.filter(active=True).filter(Q(username=username_or_email) | Q(email=username_or_email)).distinct()
+        return self.filter(is_active=True).filter(Q(username=username_or_email)
+                                                  | Q(email=username_or_email.lower())).distinct()
 
     def list_actual_users(self):
-        return self.exclude(active=True)
+        return self.exclude(is_active=True)
 
 
 class RoomManager(Manager):
@@ -99,9 +104,9 @@ class PlayerTaskManager(Manager):
 class CustomUser(AbstractUser):
     rooms = models.ManyToManyField('core.Room', related_name='users', through='core.Player')
     email = models.EmailField()
-    username = models.CharField(max_length=150, validators=(CustomUsernameValidator,))
+    username = models.CharField(max_length=150, unique=True, validators=(CustomUsernameValidator,))
     is_confirmed = models.BooleanField(default=False)
-    last_login = models.DateTimeField()
+    last_login = models.DateTimeField(default=timezone.now)
 
     objects = UserManager()
 
@@ -113,8 +118,14 @@ class CustomUser(AbstractUser):
         return self.username
 
     def login_fill(self):
-        self.last_login = datetime.now()
+        self.last_login = timezone.now()
         self.save(update_fields=('last_login',))
+
+    def send_confirmation(self):
+        send_user_confirmation_email(self.id)
+
+    def send_reset_password(self):
+        send_user_reset_password_email(self.id)
 
     @property
     def tokens_pair(self):
@@ -123,12 +134,12 @@ class CustomUser(AbstractUser):
         return {refresh.token_type: refresh, access.token_type: access}
 
     @property
-    def confirm_token(self):
-        return ConfirmationToken.for_user(self)
+    def custom_token(self):
+        return CustomToken.for_user(self)
 
 
-class ConfirmationToken(Token):
-    token_type = 'confirm'
+class CustomToken(Token):
+    token_type = 'custom'
     lifetime = timedelta(seconds=0)
 
 
@@ -177,13 +188,13 @@ class Room(models.Model):
         (VOTING, 'Voting'),
         (FINISHED, 'Finished')
     )
-    name = models.CharField(max_length=150, validators=(unique_name_with_status_validator,))
+    name = models.CharField(max_length=150)
     current_round = models.PositiveSmallIntegerField(default=1)
     max_round = models.PositiveSmallIntegerField(default=DEFAULT_MAX_ROUND)
     status = models.PositiveSmallIntegerField(default=PENDING, choices=STATUS_TYPE)
     private = models.BooleanField(default=True)
     password = models.CharField(max_length=PASSWORD_CHARS_NUMBER, default=generate_password, blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
     start_work_at = models.DateTimeField(blank=True, null=True)
     objects = RoomManager()
 
@@ -207,7 +218,7 @@ class Room(models.Model):
 
     def start_work(self):
         self.status = self.WORKING
-        self.start_work_at = datetime.now()
+        self.start_work_at = timezone.now()
         self.save(update_fields=('status', 'start_work_at'))
 
     def check_password(self, password):
@@ -248,7 +259,7 @@ class PlayerTask(models.Model):
     likes = models.ManyToManyField('core.Player', related_name='liked_answers')
     status = models.PositiveSmallIntegerField(default=PENDING, choices=STATUS_TYPES)
     scope_cost = models.PositiveSmallIntegerField()
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
     answered_at = models.DateTimeField(blank=True, null=True)
     finished_at = models.DateTimeField(blank=True, null=True)
     objects = PlayerTaskManager()
@@ -265,10 +276,10 @@ class PlayerTask(models.Model):
     def set_answer(self, answer):
         self.answer = answer
         self.status = self.COMPLETED
-        self.answered_at = datetime.now()
+        self.answered_at = timezone.now()
         self.save(update_fields=('answer', 'status', 'answered_at'))
 
     def finish(self):
         self.status = self.FINISHED
-        self.finished_at = datetime.now()
+        self.finished_at = timezone.now()
         self.save(update_fields=('status', 'answered_at'))

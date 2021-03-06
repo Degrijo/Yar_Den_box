@@ -91,16 +91,16 @@ SIMPLE_JWT = {
 }
 
 CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [(config('REDIS_HOST'), config('REDIS_PORT'))],
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [(config('REDIS_HOST'), config('REDIS_PORT'))],
         },
     },
 }
 
 WSGI_APPLICATION = 'config.wsgi.application'
-ASGI_APPLICATION = "config.routing.application"
+ASGI_APPLICATION = 'config.routing.application'
 
 
 # Database
@@ -163,9 +163,10 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 AUTH_USER_MODEL = 'core.CustomUser'
 
-INTERNAL_IPS = [
-    '127.0.0.1',
-]
+if config('DEBUG'):
+    INTERNAL_IPS = [
+        '127.0.0.1',
+    ]
 
 CORS_ORIGIN_ALLOW_ALL = True
 

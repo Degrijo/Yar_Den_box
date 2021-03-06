@@ -20,11 +20,22 @@ def send_user_reset_email(user_id):
 
 @shared_task
 def send_user_confirmation_email(user_id):
-    user = get_user_model().objects.get(user_id)
+    user = get_user_model().objects.get(id=user_id)
     subject = 'Friend Bucket Email Confirmation'
-    token = user.confirm_token
+    token = user.custom_token
     link = f'http://{FRONTEND_URL}/confirm_email/?token={token}'
     html_message = render_to_string('confirmation_email.html', {'username': user.username, 'link': link})
+    plain_message = strip_tags(html_message)
+    send_mail(subject, plain_message, EMAIL_HOST_USER, (user.email,), False, html_message=html_message)
+
+
+@shared_task
+def send_user_reset_password_email(user_id):
+    user = get_user_model().objects.get(id=user_id)
+    subject = 'Friend Bucket Password Reset'
+    token = user.custom_token
+    link = f'http://{FRONTEND_URL}/reset_password/?token={token}'
+    html_message = render_to_string('reset_password_email.html', {'username': user.username, 'link': link})
     plain_message = strip_tags(html_message)
     send_mail(subject, plain_message, EMAIL_HOST_USER, (user.email,), False, html_message=html_message)
 
