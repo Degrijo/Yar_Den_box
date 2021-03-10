@@ -36,6 +36,7 @@ idna==2.9
 incremental==17.5.0
 itypes==1.2.0
 Jinja2==2.11.2
+jsonschema==3.2.0
 kombu==5.0.2
 Markdown==3.3.3
 MarkupSafe==1.1.1
@@ -51,6 +52,7 @@ pycparser==2.20
 PyHamcrest==2.0.2
 PyJWT==1.7.1
 pyOpenSSL==19.1.0
+pyrsistent==0.17.3
 python-decouple==3.3
 pytz==2020.5
 PyYAML==5.4.1

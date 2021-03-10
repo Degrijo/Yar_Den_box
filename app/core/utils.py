@@ -1,9 +1,12 @@
 from random import sample
 from string import ascii_uppercase, digits
 
+import jsonschema
 from django.utils import timezone
+from jsonschema import validate
 
 from app.core.constants import PASSWORD_CHARS_NUMBER
+from app.core.schemas import EVENTS_SCHEMAS
 
 
 def generate_password():
@@ -71,6 +74,18 @@ def pause_event():
 
 def resume_event():
     return event_wrapper('resume')
+
+
+def validate_schema(data, schema):
+    try:
+        validate(data, schema)
+    except jsonschema.exceptions.ValidationError:
+        return False
+    return True
+
+
+def validate_event(event):
+    return any([validate_schema(event, schema) for schema in EVENTS_SCHEMAS])
 
 
 def group_by(items, group_name, *args):

@@ -15,7 +15,7 @@ from app.core.validators import CustomUsernameValidator
 from app.core.tasks import send_user_confirmation_email, send_user_reset_password_email
 
 
-# limit CustomToken by timeout
+# TODO limit CustomToken by timeout, update requirements (django + channels)
 
 
 class UserManager(BaseUserManager):
@@ -91,10 +91,10 @@ class PlayerTaskManager(Manager):
                            questionId=F('task_id'),
                            question=F('task__title'))
 
-    def is_answer_ends(self, room):
+    def is_answer_ends(self, room):  # TODO finish
         return not self.filter(player__room=room, status=PlayerTask.PENDING)
 
-    def is_vote_ends(self, room):  # need update
+    def is_vote_ends(self, room):  # TODO finish
         return self.filter(room=room, status=PlayerTask.COMPLETED)\
                    .aggregate(likes_count=Count('likes'),
                               filter=Q())\
@@ -196,6 +196,7 @@ class Room(models.Model):
     password = models.CharField(max_length=PASSWORD_CHARS_NUMBER, default=generate_password, blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
     start_work_at = models.DateTimeField(blank=True, null=True)
+    finish_work_at = models.DateTimeField(blank=True, null=True)
     objects = RoomManager()
 
     class Meta:
@@ -220,6 +221,11 @@ class Room(models.Model):
         self.status = self.WORKING
         self.start_work_at = timezone.now()
         self.save(update_fields=('status', 'start_work_at'))
+
+    def finish_work(self):
+        self.status = self.FINISHED
+        self.finish_work_at = timezone.now()
+        self.save(update_fields=('status', 'finish_work_at'))
 
     def check_password(self, password):
         return self.password == password
@@ -267,11 +273,6 @@ class PlayerTask(models.Model):
     class Meta:
         verbose_name = 'Own task'
         verbose_name_plural = 'Own tasks'
-
-    @property
-    def archived_data(self):
-        return {'task': self.task, 'answer': self.answer, 'scope_cost': self.scope_cost, 'created_at': self.created_at,
-                'answered_at': self.answered_at, 'finished_at': self.finished_at, 'likes': self.likes.count()}
 
     def set_answer(self, answer):
         self.answer = answer
