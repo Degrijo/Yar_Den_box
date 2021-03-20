@@ -35,7 +35,7 @@ hyperlink==19.0.0
 idna==2.9
 incremental==17.5.0
 itypes==1.2.0
-Jinja2==2.11.2
+Jinja2==2.11.3
 jsonschema==3.2.0
 kombu==5.0.2
 Markdown==3.3.3
