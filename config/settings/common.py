@@ -179,3 +179,5 @@ EMAIL_HOST_USER = config('EMAIL_USER')
 EMAIL_HOST_PASSWORD = config('EMAIL_PASSWORD')
 
 FRONTEND_URL = config('FRONT_URL')
+
+FIXTURE_DIRS = (os.path.join(BASE_DIR, 'fixtures'),)

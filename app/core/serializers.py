@@ -37,8 +37,8 @@ class LogInSerializer(serializers.ModelSerializer):
         self.instance = users.first()
         if not self.instance.check_password(attrs.get('password')):
             raise serializers.ValidationError({'password': ['Wrong password']})
-        if not self.instance.is_confirmed:
-            raise serializers.ValidationError("User isn't confirmed")
+        # if not self.instance.is_confirmed:  # TODO turn on for prod
+        #     raise serializers.ValidationError("User isn't confirmed")
         return attrs
 
     def update(self, instance, validated_data):
@@ -162,7 +162,10 @@ class CreateRoomSerializer(serializers.ModelSerializer):
         return room
 
     def to_representation(self, instance):
-        return {}
+        data = {'name': instance.name}
+        if instance.private:
+            data['password'] = instance.password
+        return data
 
 
 class ConnectRoomSerializer(serializers.ModelSerializer):
@@ -186,16 +189,15 @@ class ConnectRoomSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         user = self.context.get('request').user
-        if Player.objects.filter(user=user, room=instance).exists():
-            return instance
-        username = validated_data.get('username')
-        if not username:
-            username = user.username
-        Player.objects.create(user=user, username=username, room=instance, color=instance.random_player_color)
+        if not Player.objects.filter(user=user, room=instance).exists():
+            Player.objects.create_player(user, instance, validated_data.get('username'))
         return instance
 
     def to_representation(self, instance):
-        return {}
+        data = {'name': instance.name, 'players': instance.players.values_list('username', flat=True)}
+        if instance.private:
+            data['password'] = instance.password
+        return data
 
 
 class RoomSerializer(serializers.ModelSerializer):

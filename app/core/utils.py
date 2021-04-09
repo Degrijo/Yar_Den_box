@@ -5,7 +5,7 @@ import jsonschema
 from django.utils import timezone
 from jsonschema import validate
 
-from app.core.constants import PASSWORD_CHARS_NUMBER
+from app.core.constants import PASSWORD_CHARS_NUMBER, ANSWERING_DURATION
 from app.core.schemas import EVENTS_SCHEMAS
 
 
@@ -28,8 +28,8 @@ def greeting_event(name, password, users):
     return event_wrapper('greeting', name=name, password=password, users=users)
 
 
-def start_event(tasks):
-    return event_wrapper('questionList', questions=tasks)
+def start_event(questions):
+    return event_wrapper('questionList', questions=questions, timeForAnswer=ANSWERING_DURATION)
 
 
 def error_event(message):
@@ -44,20 +44,16 @@ def define_event(user_id, username, is_host):
     return event_wrapper('define', userId=user_id, username=username, isHost=is_host)
 
 
-def answer_accepted_event(user_id, username):
-    return event_wrapper('answerAccepted', userId=user_id, username=username)
+def answer_accepted_event(players):
+    return event_wrapper('answerAccepted', players=players)
 
 
 def vote_event(tasks):
-    return event_wrapper('voteList', tasks=tasks)
+    return event_wrapper('voteList', tasks=tasks, )
 
 
 def winner_event(username):
     return event_wrapper('winner', username=username)
-
-
-def timeout_event():
-    return event_wrapper('timeout')
 
 
 def reconnect_event(event):
@@ -99,3 +95,10 @@ def group_by(items, group_name, *args):
         data.setdefault(group_name, value)
         grouped.append(data)
     return grouped
+
+
+def simple_group(items, grouped_field):
+    result = {}
+    for item in items:
+        result.setdefault(item.pop(grouped_field), []).append(item)
+    return result.items()

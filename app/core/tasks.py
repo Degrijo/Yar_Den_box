@@ -32,6 +32,7 @@ def send_user_reset_password_email(user_id):
 
 
 @shared_task
-def send_delayed_message(room_group_name, event):
+def send_delayed_answering(room_id):
     channel_layer = get_channel_layer()
+
     async_to_sync(channel_layer.group_send)(room_group_name, {'type': 'send_message', 'data': event.get('data')})
