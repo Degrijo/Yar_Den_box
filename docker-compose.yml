@@ -1,17 +1,22 @@
-version: "3"
+version: "3.7"
 
 services:
   postgres:
     image: postgres
+    restart: on-failure
     ports:
       - 5432
     env_file: .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
   redis:
     image: redis
+    restart: on-failure
     ports:
       - 6379
   back:
     build: .
+    command: python manage.py runserver 127.0.0.1:8000
     volumes:
       - .:/code
     ports:
@@ -21,5 +26,7 @@ services:
       - redis
     env_file: .env
     environment:
-      - POSTGRES_HOST = "postgres"
-      - REDIS_HOST = "redis"
+      - POSTGRES_HOST="postgres"
+      - REDIS_HOST="redis"
+volumes:
+  postgres_data:

@@ -2,7 +2,7 @@ from random import shuffle
 
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import JsonWebsocketConsumer
-from django.db.models import Count
+from django.db.models import Count, F, Q
 from rest_framework_simplejwt import authentication
 
 from config.celery import app
@@ -167,16 +167,12 @@ class RoomConsumer(JsonWebsocketConsumer):
         for vote in data['votes']:
             PlayerTask.objects.get(task_id=vote['questionId'], player_id=vote['voteId']).likes.add(self.player_id)
         room = Room.objects.get(id=self.room_id)
-        if room.has_unvoted_tasks():
-            for task in Task.objects.filter(playertasks__player__room=room,
-                                            userroomtasks__status=PlayerTask.COMPLETED):
-                pair = task.playertasks.annotate(likes_count=Count('likes'))
-                obj = max(pair, key=lambda x: x.likes_count)
-                player = obj.player
-                player.score += obj.scope_cost
-                player.save(update_fields=('score',))
+        if room.has_no_unvoted_tasks():
+            PlayerTask.objects.filter(player__room=room, round=room.current_round) \
+                              .annotate(likes_count=Count('likes')) \
+                              .update(score=F('score') + F('likes_count') * SCOPE_ORDER)
             if room.current_round == room.max_round:
-                player = max(room.players.all(), key=lambda x: x.score)
+                player = room.players.  # djangoorm get object w
                 async_to_sync(self.channel_layer.group_send)(self.room_group_name, {
                     'type': 'send_message',
                     'data': winner_event(player.user.username)

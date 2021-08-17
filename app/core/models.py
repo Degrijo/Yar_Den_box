@@ -255,7 +255,7 @@ class Room(models.Model):
                                          userID=F('player_id'),
                                          username=F('player__username'))
 
-    def has_unvoted_tasks(self):
+    def has_no_unvoted_tasks(self):
         return PlayerTask.objects.filter(player__room=self,
                                          round=self.current_round) \
                                  .aggregate(total=Sum(F('likes__count'),  # doubtful
